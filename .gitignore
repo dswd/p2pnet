@@ -1,0 +1,8 @@
+# Temp files
+*~
+
+# Make results
+*.pyc
+*_pb2.py
+spec/Specification.pdf
+docs_build

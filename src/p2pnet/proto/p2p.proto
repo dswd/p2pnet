@@ -1,0 +1,225 @@
+package p2pnet;
+
+import "dht.proto";
+
+message Address {
+  enum Type {
+    IPv4_TCP = 1;
+    IPv6_TCP = 2;
+  } 
+  optional Type type = 1 [default=IPv4_TCP];
+  required bytes address = 2;
+  optional int32 port = 3;
+}
+
+message Peer {
+  required fixed64 id = 1;
+  repeated Address address = 2;
+  required bool reachable = 3;
+  optional IdProof idProof = 16;
+
+  extensions 100 to max;  
+}
+
+message PeerList {
+  repeated Peer peers = 1;
+  optional bool complete = 2 [default=true];
+  optional bool shouldReply = 3 [default=false];
+}
+
+message TrafficInfo {
+  required Peer src = 1;
+  required Peer dst = 2;
+  required float traffic = 3; //bytes per second over the last few minutes 
+}
+
+message BaseMessage {
+  repeated RoutedMessage routed = 1;
+  optional PeerList peers = 2;
+  optional Peer ident = 3;
+  repeated TrafficInfo trafficInfo = 4;
+  optional PingMessage ping = 5;
+
+  optional Initialization init = 16;
+  optional Join join = 17;
+  repeated Control linkControl = 18;
+
+  optional string test = 99;
+
+  extensions 100 to max;
+}
+
+message PingMessage {
+  enum Type {
+    PING = 1;
+    PONG = 2;
+  }
+  optional int32 id = 1;
+  optional bytes data = 2;
+}
+
+message RoutedMessage {
+  enum DstPolicy {
+    DROP = 0;
+    LEFT = 1;
+    RIGHT = 2;
+    CLOSEST = 3;
+    NOTIFY = 4;
+  }
+  optional fixed64 srcId = 1;
+  repeated fixed64 dstId = 2 [packed=true];
+  optional fixed64 dstStart = 3;
+  optional fixed64 dstEnd = 4;
+  optional int32 srcHandler = 5;
+  optional int32 dstHandler = 6;
+
+  optional int32 ttl = 7 [default=127];
+  optional DstPolicy policy = 8 [default=NOTIFY];
+  //nodes without these features should be treated as non-existant
+  repeated int32 mandatoryFeatures = 9;
+  
+  optional int32 dataType = 10;
+  optional bytes data = 11;
+
+  repeated Control routedControl = 17;
+
+  optional PingMessage pingMsg = 20;
+  optional Forwarding forward = 21;
+  repeated DHTMessage dhtMsg = 22;
+
+  optional string test = 99; //test field
+
+  extensions 100 to max;
+}
+
+enum Features {
+  //to be used wherever features are needed
+  DHT = 0;
+  FORWARD = 1;
+}
+
+message Initialization {
+  //magic string to check for wrong protocols
+  required string magic = 1 [default = 'p2pnet']; 
+  required int32 minVersion = 2 [default = 0]; //minimum supported protocol version
+  required int32 maxVersion = 3 [default = 0]; //maximum supported protocol version
+  repeated int32 optionalFeatures = 4 [packed=true]; //supported optional features
+}
+
+message IdProof {
+  enum Method {
+    ADDRESS_SHA1 = 0; 
+    //last 8 bytes of sha1 sum of given network address (param 1)
+    //sha1 calculation is repeated each time a conflicting address
+    //is found (params 2..)
+  }
+  required Method method = 1;
+  repeated bytes params = 2;
+}
+
+message Join {
+  enum Step {
+    DISCOVER = 0;
+    FORWARD = 1;
+    OFFER = 2;
+    ACCEPT = 3;
+    FINISHED = 4;
+  }
+  required Step step = 1;
+  optional Peer nextPeer = 4;
+}
+
+message Forwarding {
+  enum Operation {
+    REQUEST = 0;
+    REPLY = 1;
+  }
+  enum State {
+    ACTIVE = 0;
+    INACTIVE = 1;
+  }
+  required Operation operation = 1;
+  required State state = 2;
+  required fixed64 inId = 3;
+  required int32 inHandle = 4;
+  required fixed64 outId = 5;
+  required int32 outHandle = 6;
+  optional int32 timeout = 7 [default=600]; //seconds
+  optional float delay = 8 [default=0]; //seconds
+}
+
+message Control {
+  enum Code {
+    //Message size was $number[0], maximum allowed size is $number[1]
+    MessageTooBig = 0; 
+
+    //Malformed message $data[0]
+    MalformedMessage = 1; 
+
+    //Unsupported version
+    UnsupportedVersion = 2;
+
+    //Feature $number[0] is missing
+    MissingFeature = 2;
+
+    //Id proof not accepted
+    InvalidIdProof = 3;
+
+    //Peer $peer[0] has id $id[0]
+    DuplicateId = 4;
+
+    //Sender is unknown und must join the network first
+    JoinFirst = 5;
+
+    //Invalid join request
+    JoinError = 6;
+
+    //Sender closes the connection
+    ConnectionClose = 7;
+
+    //Sender is preparing to leave the network
+    LeaveNetworkPrepare = 8;
+
+    //Sender is leaving the network
+    LeaveNetwork = 9;
+
+    //[Routed] The following ids could not be reached: $id[*]
+    Routing_UnreachableId = 20;
+
+    //[Routed] A message from the receiver to the id $id[0] reached ttl=0
+    Routing_TtlReachedZero = 21;
+
+    //[Routed] The handler $number[0] is not bound on the sender
+    Routing_UnboundHandler = 22;
+
+    //[Routed] Failed to connect to node $peer[0]
+    FailedToConnect = 40;
+
+    //[Routed] Requested in handle $number[0] is not free
+    Forwarding_HandleNotFree = 50;
+
+    //[Routed] Invalid timeout: $number[0] sec, maximum is $number[1] sec
+    Forwarding_InvalidTimeout = 51;
+
+    //[Routed] Data too long: $number[0] bytes, maximum: $number[1] bytes
+    Dht_DataTooLong = 60;
+  }
+
+  enum Severity {
+    INFO = 0; //Sender informs receiver about a normal situation
+    WARNING = 1; //Sender warns about unexpected situation, continue as normal
+    ERROR = 2; //Sender could not perfrom action, continue as normal
+    FATAL = 3; //Connection is in an invalid state, should be terminated
+  }
+
+  required Code code = 1;
+  optional string message = 2;
+  optional Severity severity = 3;
+
+  repeated fixed64 id = 10;
+  repeated int32 number = 11;
+  repeated bytes data = 12;
+  repeated string name = 13;
+  repeated Peer peer = 14;
+  repeated Address address = 15;
+}

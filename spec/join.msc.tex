@@ -1,0 +1,27 @@
+\begin{msc}{Network joining}
+
+\declinst{n1}{Node}{1395}
+\declinst{n2}{Node}{4571}
+\declinst{me}{Joining node}{5012}
+\declinst{n3}{Node}{8281}
+
+\mess{discover}{me}{n1}[1]
+\nextlevel[2]
+\mess{forward}{n1}{me}[1]
+\nextlevel[2]
+\mess{discover}{me}{n2}[1]
+\nextlevel[2]
+\mess{offer}{n2}{me}[1]
+\nextlevel[2]
+\mess{discover}{me}{n3}[1]
+\nextlevel[2]
+\mess{offer}{n3}{me}[1]
+\nextlevel[2]
+\mess{accept}{me}{n2}[1]
+\mess{accept}{me}{n3}[1]
+\nextlevel[2]
+\mess{finished}[b]{n2}{me}[1]
+\mess{finished}[b]{n3}{me}[1]
+\nextlevel
+
+\end{msc}

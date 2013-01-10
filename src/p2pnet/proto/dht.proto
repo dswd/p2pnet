@@ -1,0 +1,93 @@
+package p2pnet;
+
+message DHTMessage {
+  required fixed64 hash = 1; //the hash of the entry == the id it should be stored on
+  required bytes key = 2; //the key of the entry, used to avoid hash collisions
+  optional DHTEntry entry = 3; //the dht entry, used in replies (if existant) or when forwarding stored data
+  repeated DHTOp op = 4; //multiple dht operations (get, store, ...)
+}
+
+message DHTEntry {
+  optional int32 firstAge = 1; //time in sec, since this entry has first been seen
+  optional int32 lastAge = 2; //time in sec, since this entry has last been renewed or updated
+  optional int32 timeout = 3; //time in sec, when this entry will time out
+  optional int32 valueCount = 4; //number of values, currently stored in the entry
+  optional int32 dataSize = 5; //total number of bytes used by all values of the entry in sum
+  repeated bytes value = 6; //requested values (get operation) or all values (forwarded entry)
+  repeated ServiceAddress listeners = 7; //all listeners of the entry
+  repeated ServiceAddress forwards = 8; //all forwards of the entry
+}
+
+message DHTOp {
+  message Get { //request for values of an entry
+    repeated sint32 index = 1;
+    optional sint32 indexStart = 2;
+    optional sint32 indexEnd = 3;
+    optional bool includeListeners = 4 [default=false];
+  }
+  optional Get get = 1;
+
+  message GetInfo { //request for meta information of an entry
+    optional bool includeListeners = 1 [default=false];
+  }
+  optional GetInfo getInfo = 2;
+
+  message Set { //request to store values for an entry
+    enum Mode {
+      OVERWRITE = 1;
+      INSERT = 2;
+      APPEND = 3;
+    }
+    optional Mode mode = 1 [default=OVERWRITE];
+    repeated bytes value = 2;
+    repeated sint32 index = 3;
+    optional sint32 indexStart = 4;
+    optional sint32 indexEnd = 5;
+  }
+  optional Set set = 3;
+
+  message Delete { //request to delete values of an entry
+    repeated sint32 index = 1;
+    optional sint32 indexStart = 2;
+    optional sint32 indexEnd = 3;
+  }
+  optional Delete delete = 4;
+
+  message Timeout { //request to set the timeout of an entry (either renew or delete)
+    optional int32 timeout = 1 [default=600];
+  }
+  optional Timeout timeout = 5;
+
+  message Listener { //request to add a listener to an entry, renew it or delete it (timeout=0)
+    required ServiceAddress listener = 1;
+    optional int32 timeout = 2 [default=600];
+  }
+  optional Listener listener = 6;
+
+  message Forward { //request to add a forward to an entry, renew it or delete it (timeout=0)
+    required ServiceAddress forward = 1;
+    optional int32 timeout = 2 [default=600];
+  }
+  optional Forward forward = 7;
+
+  message Conditional { //operation sequence will be terminated if the conditional does not match
+    optional int32 skipOps = 1;
+    optional int32 minCount = 2;
+    optional int32 maxCount = 3;
+    optional int32 minLastAge = 4;
+    optional int32 maxLastAge = 5;
+  }
+  optional Conditional conditional = 8;
+}
+
+message ServiceName {
+  //used as key in dht
+  required int32 type = 1;
+  required string name = 2;
+}
+
+message ServiceAddress {
+  //used as value in dht
+  repeated fixed64 id = 1;
+  repeated int32 handle = 2;
+}

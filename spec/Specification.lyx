@@ -1,0 +1,1912 @@
+#LyX 2.0 created this file. For more info see http://www.lyx.org/
+\lyxformat 413
+\begin_document
+\begin_header
+\textclass scrartcl
+\begin_preamble
+\usepackage{msc}
+\end_preamble
+\use_default_options true
+\begin_modules
+theorems-ams
+eqs-within-sections
+figs-within-sections
+\end_modules
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family sfdefault
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize a4paper
+\use_geometry false
+\use_amsmath 1
+\use_esint 1
+\use_mhchem 1
+\use_mathdots 1
+\cite_engine natbib_authoryear
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 2
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+P2pNet Protocol Specification
+\end_layout
+
+\begin_layout Author
+Dennis Schwerdel
+\end_layout
+
+\begin_layout Subtitle
+Version 0.1
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset toc
+LatexCommand tableofcontents
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Introduction
+\end_layout
+
+\begin_layout Subsection
+Design goals
+\end_layout
+
+\begin_layout Itemize
+Stability
+\end_layout
+
+\begin_layout Itemize
+Security
+\end_layout
+
+\begin_layout Itemize
+Simplicity
+\end_layout
+
+\begin_layout Itemize
+Generality
+\end_layout
+
+\begin_layout Itemize
+Nat/Firewall support
+\end_layout
+
+\begin_layout Section
+Network structure
+\end_layout
+
+\begin_layout Standard
+The network is organized as a ring in a fixed ID space (default 
+\begin_inset Formula $2^{64}$
+\end_inset
+
+), with each node having a cryptographic key-pair and the ID being the least
+ significant 64 bits of the binary representation of the public key.
+\end_layout
+
+\begin_layout Standard
+All peers that are not publicly reachable or are not able to connect to
+ publicly reachable nodes are edge-peers, all others are super-peers.
+ This means that all nodes must detect their own reachability, public address
+ and connection capabilities before joining the network.
+ Especially nodes behind NAT routers, and firewalls or filtered networks
+ must become edge peers.
+\end_layout
+
+\begin_layout Subsection
+Peers
+\end_layout
+
+\begin_layout Standard
+Nodes maintain several sets of peers that they are connected to:
+\end_layout
+
+\begin_layout Description
+Short
+\begin_inset space ~
+\end_inset
+
+peers: Each node is connected to the closest (in the id space) 
+\begin_inset Formula $S/2$
+\end_inset
+
+ super peer nodes on each side (
+\begin_inset Formula $S\geq2$
+\end_inset
+
+ even, default: 
+\begin_inset Formula $S=6$
+\end_inset
+
+).
+ It is of critical importance that the closest super peer nodes (direct
+ neighbors) in both directions are contained in the short peer set at all
+ times.
+ The rest of the short peers are needed to maintain this condition when
+ a direct neighbor crashes and exits the network.
+\end_layout
+
+\begin_layout Description
+Long
+\begin_inset space ~
+\end_inset
+
+peers: All super peers try to maintain a set of 
+\begin_inset Formula $L/2$
+\end_inset
+
+ super peer nodes (default: 
+\begin_inset Formula $L=60$
+\end_inset
+
+) on each side that are evenly spread out in the logarithmic id space (centered
+ around the local node) starting at the outermost short peer positions.
+ These nodes are not critical for network stability but their correct positions
+ ensure logarithmic routed path lengths.
+ Nodes can choose different long peers if they offer good connection characteris
+tics (e.g.
+ latency, bandwidth) and are still located close to the optimal position.
+ Edge peer nodes do not have to maintain long peers but can if they want
+ to.
+\end_layout
+
+\begin_layout Description
+Edge
+\begin_inset space ~
+\end_inset
+
+peers: Super peers maintain a set of edge peers that are located between
+ them and one of their direct neighbors in the id space.
+ It is the responsibility of each edge peer to maintain the connection to
+ its super peers as part of its short peer list.
+ 
+\end_layout
+
+\begin_layout Description
+Traffic
+\begin_inset space ~
+\end_inset
+
+peers: Each node maintains connections to up to 
+\begin_inset Formula $T$
+\end_inset
+
+ additional nodes (default: 
+\begin_inset Formula $T=10$
+\end_inset
+
+) to reduce the path length of routed traffic.
+ The traffic peers must not be already listed in any other peer set except
+ reverse peers.
+\end_layout
+
+\begin_layout Description
+Reverse
+\begin_inset space ~
+\end_inset
+
+connections: The reverse connection set contains all nodes that list the
+ current node as a peer (short peer, long peer, traffic peer or edge peer)
+ but are not contained in any of the peer sets of the current node.
+ Reverse connections are not considered to be peers and are not part of
+ the peer list of the node.
+ However the reverse connections are used to forward messages.
+\end_layout
+
+\begin_layout Standard
+For simplicity the peers in the short, long, traffic and edge peer set are
+ combined in the so called 
+\emph on
+peer list
+\emph default
+.
+ The peer list together with the reverse connections form the set of 
+\emph on
+connected nodes
+\emph default
+.
+ All connected nodes and all nodes in their peer lists are called 
+\emph on
+known nodes
+\emph default
+ list.
+\end_layout
+
+\begin_layout Standard
+Note that the peer list relation is not guaranteed to be symmetric but the
+ connected nodes relation is designed to be symmetric.
+\end_layout
+
+\begin_layout Standard
+Each node entry contains the id of the node, all of its addresses and a
+ flag to distinguish super peers from edge peers.
+\end_layout
+
+\begin_layout Subsection
+Behavior
+\end_layout
+
+\begin_layout Standard
+All nodes will periodically send their full peer list to all of their connected
+ nodes and will store the incoming peer lists of its connected nodes to
+ form the known nodes list.
+ Nodes keep track of the traffic they forward between their connected nodes
+ when routing messages in form of a traffic matrix.
+ When they send the peer list to other nodes they will also send traffic
+ information about that node (i.e.
+ the row/column of the traffic matrix matching that node).
+\end_layout
+
+\begin_layout Standard
+Whenever nodes receive peer lists and updated traffic information they try
+ to improve their own peer list and reverse connections using all known
+ nodes.
+\end_layout
+
+\begin_layout Subsection
+Invariants
+\end_layout
+
+\begin_layout Enumerate
+All nodes have unique random-looking ids.
+ This is important to ensure the logarithmic routing properties and to prevent
+ some potential attacks on the network.
+\end_layout
+
+\begin_layout Enumerate
+Every node is connected to its closest super-peer neighbors on both sides.
+ This property is critical for the stability of the network ring and needed
+ to guarantee message delivery.
+\end_layout
+
+\begin_layout Enumerate
+Every node is able to connect to every super-peer node.
+ Nodes with limited connection capabilities must become edge peers.
+ This invariant is needed to establish invariant 2.
+\end_layout
+
+\begin_layout Enumerate
+Nodes forward messages only to nodes closer to the destination or to the
+ direct super-peer neighbors of the destination ID but never back to the
+ peer the message has been received from.
+ This invariant guarantees message delivery convergence and thus guarantees
+ message delivery as long as invariant 2 is fulfilled.
+\end_layout
+
+\begin_layout Subsection
+Properties
+\end_layout
+
+\begin_layout Enumerate
+Every connected network of 
+\begin_inset Formula $N$
+\end_inset
+
+ nodes with a stable node set will converge to an optimal network with at
+ most 
+\begin_inset Formula $O\left(N\right)$
+\end_inset
+
+ peer list exchanges.
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+PROOF: trivial, better neighbor will be selected as peers
+\end_layout
+
+\begin_layout Standard
+FIXME: proof 
+\begin_inset Formula $O\left(log\left(N\right)\right)$
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+In a converged network of 
+\begin_inset Formula $N$
+\end_inset
+
+ nodes message delivery can be guaranteed in 
+\begin_inset Formula $N/S$
+\end_inset
+
+ hops.
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+PROOF: trivial, message routing via short peers
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+In a converged network of 
+\begin_inset Formula $N$
+\end_inset
+
+ evenly distributed (in the ID space) nodes, message delivery can be guaranteed
+ in 
+\begin_inset Formula $O\left(log\left(N\right)\right)$
+\end_inset
+
+ hops.
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+PROOF: not trivial
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+In a converged network, message delivery can be guaranteed between all super-pee
+r nodes even after 
+\begin_inset Formula $S/2-1$
+\end_inset
+
+ nodes crashed simultaneously.
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+PROOF: TCP guarantees transmission acknowledgement, correct route will always
+ be found if at least one short peer in each direction is known
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+In a converged network where each super-peer node (including all its edge
+ peer nodes) only communicates with less than 
+\begin_inset Formula $T$
+\end_inset
+
+ other super-peer nodes (including all their edge peer nodes) all the paths
+ of these communications will converge to the length 
+\begin_inset Formula $\leq3$
+\end_inset
+
+.
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+PROOF: trivial
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+In a converged network of sufficient size, 
+\begin_inset Formula $S+L+T$
+\end_inset
+
+ nodes have to fail simultaneously for a super-peer node to become fully
+ disconnected.
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+PROOF: trivial
+\end_layout
+
+\end_deeper
+\begin_layout Section
+Basic protocol
+\end_layout
+
+\begin_layout Subsection
+Connections & message encoding
+\end_layout
+
+\begin_layout Standard
+Nodes are expected to maintain connections to their peers.
+ These connections allow the nodes to exchange messages with their peers
+ without the overhead of establishing a connection first.
+ To ensure message delivery, connections should be reliable and the TCP
+ protocol should be used for this purpose.
+\end_layout
+
+\begin_layout Standard
+On each connection, messages of type 
+\emph on
+BaseMessage
+\emph default
+ are exchanged.
+ Each message is prepended by the size of the encoded message in bytes,
+ encoded as a protocol buffer varint.
+ The size of a message should be limited to a reasonable amount of bytes
+ (default: 1024 KiB).
+ All other messages must be wrapped in 
+\emph on
+BaseMessage
+\emph default
+ messages to be sent over the connection.
+ 
+\end_layout
+
+\begin_layout Standard
+Each connection should start with a single 
+\emph on
+Initialization
+\emph default
+ message (wrapped in a 
+\emph on
+BaseMessage
+\emph default
+) sent by both connected nodes.
+ The 
+\emph on
+Initialization
+\emph default
+ message should start with the 
+\emph on
+magic
+\emph default
+ field so that the connection is initialized with a magic sequence.
+\end_layout
+
+\begin_layout Standard
+When nodes are forwarding information from other nodes, they must use the
+ original message and only modify it if needed (keeping all unknown fields
+ intact).
+ When replying on a message, nodes should create new messages instead of
+ modifying the request (removing all unknown fields).
+\end_layout
+
+\begin_layout Subsection
+Connection/peer states
+\end_layout
+
+\begin_layout Standard
+A connection (and therefore the associated node) can be in a certain number
+ of defined states.
+ Depending on these states the node reacts differently on incoming messages
+ and events.
+\end_layout
+
+\begin_layout Description
+new Connections enter this state after being established.
+ After a valid 
+\emph on
+Initialization
+\emph default
+ message is received, the next state is determined using the contents of
+ the 
+\emph on
+Initialization
+\emph default
+.
+ If the message contains no membership certificate from a peer of the node,
+ the connection enters the state 
+\emph on
+external
+\emph default
+, otherwise the connection enters the state 
+\emph on
+passive
+\emph default
+, 
+\emph on
+peer
+\emph default
+ or 
+\emph on
+edge
+\emph default
+.
+ This state is special since it is the only state in which there is no informati
+on on the node associated with the connection.
+\end_layout
+
+\begin_layout Description
+external Nodes in this state are considered to be outside of the network.
+ That means that the only accepted messages are 
+\emph on
+Control
+\emph default
+ and 
+\emph on
+Join
+\emph default
+.
+ In the join process, the node will either close the connection or successfully
+ join the network, and thus enters the state 
+\emph on
+p
+\emph default
+eer or 
+\emph on
+edge
+\emph default
+, depending on reachability.
+\end_layout
+
+\begin_layout Description
+passive Nodes in this state are valid peers but not needed as any peer type.
+ Once the node is being used as a peer or becomes an edge peer associated
+ to this node, it enters state 
+\emph on
+peer
+\emph default
+ or 
+\emph on
+edge
+\emph default
+.
+ Peers in this state are included in the 
+\emph on
+reverse
+\emph default
+ 
+\emph on
+connections
+\emph default
+ peer set.
+\end_layout
+
+\begin_layout Description
+peer Nodes in this state are peers of the local node and included in either
+ the 
+\emph on
+long
+\emph default
+, 
+\emph on
+short
+\emph default
+ or 
+\emph on
+traffic
+\emph default
+ peer sets.
+ Connections in this state are actively kept alive and re-established if
+ they fail.
+\end_layout
+
+\begin_layout Description
+edge Nodes in this state are edge peers of the local node and included in
+ the 
+\emph on
+edge 
+\emph default
+or
+\emph on
+ traffic
+\emph default
+ peer sets.
+ Connections in this state are actively kept alive.
+\end_layout
+
+\begin_layout Description
+leaving Nodes in this state are valid peers that are leaving the network.
+ These nodes will not be used for message routing any more and will not
+ be used to store data.
+\end_layout
+
+\begin_layout Subsection
+Connection maintenance
+\end_layout
+
+\begin_layout Standard
+Connections should have a short (e.g.
+ 60 seconds) enforced timeout, i.e.
+ if no message is received or sent within this timespan, the connection
+ is considered unused and thus will be closed.
+ To keep required connections, (i.e.
+ connections in the states 
+\emph on
+peer
+\emph default
+ or 
+\emph on
+edge
+\emph default
+) alive, nodes will periodically send keep-alive messages via these connections.
+ Nodes can use an empty 
+\emph on
+BaseMessage
+\emph default
+ (encoded as a single 0-byte, meaning message length 0 and no bytes for
+ the message) for this purpose.
+\end_layout
+
+\begin_layout Standard
+Note that only connections that are in the state 
+\emph on
+peer
+\emph default
+ or 
+\emph on
+edge
+\emph default
+ on at least one side of the connection are actively kept alive.
+ All other connections, especially those being in passive state on both
+ sides will time-out and be closed.
+\end_layout
+
+\begin_layout Standard
+Connections should be closed by sending the 
+\emph on
+Control
+\emph default
+ message 
+\emph on
+ConnectionClose
+\emph default
+ with 
+\emph on
+severity
+\emph default
+ set to 
+\emph on
+FATAL
+\emph default
+.
+ The receiver of this message will remove all information about this node,
+ reply with a 
+\emph on
+ConnectionClose
+\emph default
+ of its own (if connection is still alive), close the connection on its
+ end, and not try to re-establish the connection.
+\end_layout
+
+\begin_layout Standard
+All connections that are terminated any other way and previously have been
+ actively kept alive will be re-established.
+\end_layout
+
+\begin_layout Subsection
+Initialization & identity messages
+\end_layout
+
+\begin_layout Standard
+Each connection should begin with an 
+\emph on
+Initialization
+\emph default
+ message (that lists the minimal and maximal supported protocol versions
+ and all the supported optional features) being sent by both sides.
+ Both ends of a connection should automatically use the highest version
+ number that is supported by both ends for the connection.
+\end_layout
+
+\begin_layout Standard
+The node that establishes the connection must send an 
+\emph on
+ident
+\emph default
+ message to identify itself.
+ If the sender node has a valid membership certificate signed by a peer
+ of the reciever, the receiver should reply with an 
+\emph on
+ident
+\emph default
+ message of its own.
+ Otherwise no 
+\emph on
+ident
+\emph default
+ will be sent by the contacted node and the communication is restricted
+ to 
+\emph on
+Join
+\emph default
+ messages.
+\end_layout
+
+\begin_layout Standard
+The receiver of an 
+\emph on
+ident
+\emph default
+ message should check that the id signature is valid.
+ Otherwise the 
+\emph on
+ident
+\emph default
+ should be rejected, the sender should be informed with a 
+\emph on
+Control
+\emph default
+ message and the connection should be terminated.
+\end_layout
+
+\begin_layout Standard
+Nodes must not modify the ident messages received from their connected nodes
+ to keep their signature valid and allow nodes to include additional information
+ in their ident messages so that other nodes can use this information even
+ when relaying nodes do not understand it.
+\end_layout
+
+\begin_layout Subsection
+Join behavior
+\end_layout
+
+\begin_layout Standard
+The join procedure consists of the following steps:
+\end_layout
+
+\begin_layout Enumerate
+The node that wants to join the network (joining node) first creates a cryptogra
+phic key pair and determines the id from it.
+ Then it creates a signature for the id as a proof as described in section
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:ID-selection"
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Enumerate
+The joining node contacts one or multiple known nodes (contacted node) and
+ sends a 
+\emph on
+Join-discover request
+\emph default
+ to them.
+ Nodes should store all known nodes to a file before leaving the network
+ and consult that file when joining the network to find active nodes.
+\end_layout
+
+\begin_layout Enumerate
+Upon the Join-discover request the contacted node will verify the request
+ and try to locate the requested id.
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+If another node is known with the requested id and different address a 
+\emph on
+DuplicateId
+\emph default
+ 
+\emph on
+Control
+\emph default
+ message is sent to the joining node.
+ In this case the joining node restarts the join procedure with a different
+ id in step 1.
+\end_layout
+
+\begin_layout Enumerate
+If the contacted node is no direct neighbor of the requested id (i.e.
+ another node is known that is closer to the requested id than the contacted
+ node), a 
+\emph on
+Join-forward
+\emph default
+ message containing the peer information of that node is sent to the joining
+ node.
+ In this case the joining node contacts the new node and repeats step 2.
+ If multiple nodes closer to the requested id are known, the closest node
+ will be included in the 
+\emph on
+Join-forward
+\emph default
+ message.
+ 
+\end_layout
+
+\begin_layout Enumerate
+If the contacted node is a direct neighbor of the requested id, the contacted
+ node will send a 
+\emph on
+Join-offer
+\emph default
+ message and the complete peer list of the contacted node.
+ This message can contain additional information that the joining node must
+ have to be part of the network (e.g.
+ DHT data).
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+When the joining node receives a 
+\emph on
+Join-offer
+\emph default
+ message it incorporates all additional information needed by the network
+ (e.g.
+ DHT data).
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+If this is the first direct neighbor that sends a 
+\emph on
+Join-offer
+\emph default
+ message, the joining node determines the other direct neighbor by looking
+ at the peer list and sends a 
+\emph on
+Join-discover
+\emph default
+ to that node.
+\end_layout
+
+\begin_layout Enumerate
+If the joining node has received 
+\emph on
+Join-offer
+\emph default
+ messages from both direct neighbors, it sends 
+\emph on
+Join-accept
+\emph default
+ messages to both nodes, confirming that it wants to join the network and
+ incorporated all additional information needed by the network (e.g.
+ DHT data).
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+When the neighbors receive a Join-accept message, they use the node ident
+ of the joining node to update their peer list and respond with a 
+\emph on
+Join-finished
+\emph default
+ message to confirm that the joining node is inside their peer list and
+ thus reachable.
+\end_layout
+
+\begin_layout Enumerate
+When the joining node received both 
+\emph on
+Join-finished
+\emph default
+ messages, it has successfully joined the network and uses the peer lists
+ of its direct neighbors (received with the 
+\emph on
+Join-offer
+\emph default
+ messages) to build its initial peer list.
+\end_layout
+
+\begin_layout Subsection
+Peer selection
+\end_layout
+
+\begin_layout Subsection
+Leaving the network
+\end_layout
+
+\begin_layout Standard
+Nodes that want to leave the network, are required to follow these steps:
+\end_layout
+
+\begin_layout Enumerate
+All connections are half-closed by sending the 
+\emph on
+Control
+\emph default
+ message
+\emph on
+ LeaveNetwork
+\emph default
+.
+ This step will ensure the following:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+The node will be removed from all routing tables and not be used to forward
+ messages any more
+\end_layout
+
+\begin_layout Itemize
+Nodes will not include this node in their peer lists and also ignore this
+ node if it is contained in foreign peer lists
+\end_layout
+
+\begin_layout Itemize
+No stored data (e.g.
+ from DHT) will be stored on the node from now on
+\end_layout
+
+\begin_layout Itemize
+Edge peers will establish connections to other super peers
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Send all stored data to other nodes
+\end_layout
+
+\begin_layout Enumerate
+Wait until all edge peers have closed their connections
+\end_layout
+
+\begin_layout Enumerate
+Close all connections by sending the 
+\emph on
+Control
+\emph default
+ message 
+\emph on
+ConnectionClose
+\end_layout
+
+\begin_layout Subsection
+Message routing
+\end_layout
+
+\begin_layout Standard
+Since nodes are only connected to some other nodes, messages need to be
+ routed to reach other nodes.
+ The 
+\emph on
+RoutedMessage
+\emph default
+ is an envelope for messages to other nodes that will be forwarded by each
+ node that receives it until it reaches its destination.
+\end_layout
+
+\begin_layout Standard
+
+\emph on
+RoutedMessages
+\emph default
+ contain the source id and multiple destination ids along with a 
+\emph on
+ttl
+\emph default
+ counter and a routing 
+\emph on
+policy
+\emph default
+.
+ The source id is ignored in the routing process and is only a hint for
+ the receiver or a node that detects a routing problem.
+\end_layout
+
+\begin_layout Standard
+The following steps are executed for each destination id in the routing
+ of a message:
+\end_layout
+
+\begin_layout Enumerate
+The routing node checks if the destination id is its own id.
+ In this case the routing ends and the routing node handles the message.
+\end_layout
+
+\begin_layout Enumerate
+The routing node checks if one of its connected nodes has the destination
+ id and if so, it forwards the message to that node.
+\end_layout
+
+\begin_layout Enumerate
+The routing node decrements the 
+\emph on
+ttl
+\emph default
+ field by 1.
+ If that field reached 0, a 
+\emph on
+Routing_TllReachedZero
+\emph default
+ 
+\emph on
+Control
+\emph default
+ message is routed back to the sender id.
+ 
+\end_layout
+
+\begin_layout Enumerate
+If the routing node is a super peer node, it checks if the destination id
+ is between its own id and one of its direct neighbors.
+ If so, the next steps depend on the routing policy:
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+If the routing policy is 
+\emph on
+drop
+\emph default
+, the message is dropped and the routing ends.
+\end_layout
+
+\begin_layout Enumerate
+If the routing policy is 
+\emph on
+notify
+\emph default
+, a 
+\emph on
+Routing_UnreachableId
+\emph default
+ 
+\emph on
+Control
+\emph default
+ message is routed back to the sender id.
+\end_layout
+
+\begin_layout Enumerate
+If the routing policy is 
+\emph on
+left
+\emph default
+ (
+\emph on
+right
+\emph default
+) and the destination id is located between the routing node and its 
+\emph on
+left
+\emph default
+ (
+\emph on
+right
+\emph default
+) direct neighbor, the message is forwarded to that node.
+ Otherwise the message is handled by the routing node.
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+If none of the other conditions were met, the node forwards the message
+ to the connect node that is closest to the destination id.
+\end_layout
+
+\begin_layout Standard
+While these steps are executed for each destination id separately, the routing
+ node should combine outgoing messages that should be forwarded to the same
+ node by aggregating the different destination ids in one message.
+ Also control messages can be combined as they are all going back to the
+ sender id.
+\end_layout
+
+\begin_layout Standard
+If the 
+\emph on
+mandatoryFeatures
+\emph default
+ field is set only nodes that provide these features are considered in the
+ routing process except in step 5.
+ That means that depending on the policy, nodes should drop the message
+ or notify the sender even if the destination node exists but does not provide
+ the requested feature.
+ In the policies left and right, the message should be forwarded to the
+ node closest to the destination id to left (right) side of the id ring.
+\end_layout
+
+\begin_layout Subsection
+End-to-end communication
+\end_layout
+
+\begin_layout Standard
+Each node has a unique id and nodes can communicate by sending messages
+ to each others ids.
+ If nodes wish to distinguish different conversations with different nodes
+ or with the same node they can use handles.
+ 
+\emph on
+RoutedMessages
+\emph default
+ contain fields for the handles of the source node and the destination node.
+\end_layout
+
+\begin_layout Standard
+These handles can be used like ports in traditional TCP/IP or UDP/IP communicati
+on.
+ Application developers are strongly advised to avoid using hard-coded handle
+ numbers (like well-known ports) or node ids, and use a DHT naming method
+ as described in section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:Distributed-Hash-Table"
+
+\end_inset
+
+ instead.
+\end_layout
+
+\begin_layout Standard
+Message delivery can only be guaranteed as long as no node crashes while
+ forwarding the message.
+ That means that from an end-to-end perspective a small probability exists
+ that a message gets lost.
+ While this can be compensated in general by traditional end-to-end retransmissi
+on, domain-specific mechanisms can help to improve performance and save
+ memory compared to traditional end-to-end retransmission algorithms.
+ In most cases the data to be transmitted is either statically available
+ at the sender side and does not need to be buffered or is time critical
+ like audio or video streams and does not have to be retransmitted at all.
+\end_layout
+
+\begin_layout Section
+Implementation details
+\end_layout
+
+\begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:ID-selection"
+
+\end_inset
+
+ID selection
+\end_layout
+
+\begin_layout Standard
+If attackers could choose ids freely they can effectively attack the network
+ in the following ways:
+\end_layout
+
+\begin_layout Enumerate
+Select an id close to one of another node to become its peer and obtain
+ its peer list.
+ This way an attacker can obtain IP addresses of all the nodes in the network
+ and get information about its structure.
+\end_layout
+
+\begin_layout Enumerate
+Obtain the peer list of a node as described in 1.
+ and then select an id to become its hop to a selected target.
+ This way the attacker can get between any two nodes and carry out man-in-the-mi
+ddle attacks or simply eavesdrop on the data.
+\end_layout
+
+\begin_layout Enumerate
+Substitute all the peers of a node as described in 2.
+ with nodes controlled by the attacker and then terminate all connections
+ to remove the node from the network.
+\end_layout
+
+\begin_layout Standard
+To prevent attackers from selecting arbitrary ids the network must be secured
+ in the following ways:
+\end_layout
+
+\begin_layout Enumerate
+Before starting the communication, both nodes will first check the id proof
+ of each other.
+\end_layout
+
+\begin_layout Enumerate
+Nodes should not allow unknown nodes to become their peers.
+ Nodes should be only accepted as peers if they are certified peers of known
+ peers.
+\end_layout
+
+\begin_layout Standard
+These rules will make sure that nodes with selected ids will not be accepted.
+ In the join process the node has to proof id randomness to all nodes along
+ the way to even get to the desired position.
+ Nodes that have joined the network will be checked on each connection attempt.
+ The second rule will make sure that all nodes undergo the join procedure.
+\end_layout
+
+\begin_layout Subsubsection
+ID randomness
+\end_layout
+
+\begin_layout Standard
+Random ids will be created by generating a cryptographic key pair and using
+ the lower 64 bits of the binary representation of the public key as the
+ id.
+ This way, the randomness of the id can be proved by proving that it stems
+ from a public key of a valid key pair.
+ Therefore, 
+\emph on
+ident
+\emph default
+ messages must be cryptographically signed so that the receiver sees that
+ the key-pair is valid.
+\end_layout
+
+\begin_layout Subsubsection
+Membership certificates
+\end_layout
+
+\begin_layout Standard
+To ensure that all peers must undergo the join procedure peers will issue
+ membership certificates to each others.
+ Peers will only add nodes to their peer list that either have successfully
+ joined the network on this node or contain a valid membership certificate
+ of a known peer in their 
+\emph on
+ident
+\emph default
+ message.
+ This rule essentially limits the set of other nodes a node can communicate
+ with to the peers of peers.
+ Since this is the natural way in which nodes get to know each others, this
+ limitation does not slow down convergence.
+\end_layout
+
+\begin_layout Subsection
+Network splits
+\end_layout
+
+\begin_layout Standard
+Network splits are a critical problem to peer-to-peer networks.
+ Network splits happen when two parts of the physical network, each containing
+ multiple nodes cannot reach each others for a longer time.
+ For a single node, this looks like random node failures of its peers, and
+ it will on this by substituting these peers with other nodes.
+ Once all the nodes of the split networks have recovered from the loss of
+ their peers, two separate networks exist that do not contain references
+ to the other network.
+ Even when the other network parts become reachable again, the network will
+ not be rejoined as all nodes have removed all the references to these nodes.
+\end_layout
+
+\begin_layout Subsubsection
+Detection
+\end_layout
+
+\begin_layout Standard
+The following strategies should allow to detect network splits with a very
+ high probability:
+\end_layout
+
+\begin_layout Description
+Offline
+\begin_inset space ~
+\end_inset
+
+nodes Nodes that leave the network normally should store a list of known
+ nodes.
+ To join the network again, a node will contact multiple nodes from that
+ list in parallel.
+ This will speed up the join process significantly as the join position
+ will be found much faster.
+ When the node has successfully joined the network it should still watch
+ the result of the other join requests.
+ If a join request leads to different direct neighbors for the same id,
+ the joining node can be sure it detected a network split.
+\end_layout
+
+\begin_layout Description
+Massive
+\begin_inset space ~
+\end_inset
+
+peer
+\begin_inset space ~
+\end_inset
+
+failures Peers can fail from time to time which is not necessarily a sign
+ for a network split, but if lots of peers of one node (e.g.
+ half of all peers) fail within a time-span of the general connection timeout
+ this is a pretty good sign of a network split.
+ In this case, the failing peers should still be substituted but also, reference
+s to them should be stored for a longer time and periodically their reachability
+ should be checked.
+\end_layout
+
+\begin_layout Standard
+Nodes using these strategies have a good chance to detect a network split.
+ A single node that detects the network split is enough to initiate the
+ network merge, so the probability of a recovery is very high and increases
+ with the number of nodes.
+\end_layout
+
+\begin_layout Subsubsection
+Recovery by merge
+\end_layout
+
+\begin_layout Standard
+To recover from a network split the different networks need to be merged
+ again.
+ A single node can instantiate this by becoming member of both all network
+ parts via the join process.
+ The peer list exchange will then guarantee that the networks will be merged
+ and converge to a compound network.
+\end_layout
+
+\begin_layout Standard
+Since the network parts were independent for some time, different nodes
+ might have joined different network parts with the same id.
+ After the merge, the network optimization will guarantee network convergence
+ which means that nodes with the same will become direct neighbors.
+ In this case the nodes will detect the id collision and both leave and
+ re-join the network with a different id.
+\end_layout
+
+\begin_layout Subsection
+Encrypted network
+\end_layout
+
+\begin_layout Standard
+To avoid man-in-the-middle attacks by external attackers, the network can
+ be encrypted.
+ In this case the key-pairs of the nodes will be used to establish encrypted
+ connections to each others.
+ As the nodes select their peers from the peer lists of their peers, they
+ will always know the public key before establishing a connection.
+\end_layout
+
+\begin_layout Standard
+When nodes establish a connection they first agree on an encryption method
+ and exchange symmetric encryption keys using their asymmetric keys.
+ The symmetric keys could either be used for the whole connection are be
+ renegotiated periodically depending on the encryption method.
+\end_layout
+
+\begin_layout Subsection
+Application best practices
+\end_layout
+
+\begin_layout Itemize
+Applications should not extend the RoutedMessage to include their payload
+ as a field, instead they should encode their message in the data field.
+ This way only the real receiver will have to decode the data and advanced
+ features like cryptography apply on the payload.
+\end_layout
+
+\begin_layout Itemize
+As bigger networks are more stable, different applications might want to
+ share a network.
+ To enable this, nodes should not assume that all other nodes run the same
+ application.
+\end_layout
+
+\begin_layout Itemize
+Nodes that a very short lived should choose to be edge-peer to enhance network
+ stability.
+\end_layout
+
+\begin_layout Itemize
+Applications should split big routed messages into chunks to increase the
+ performance of the network.
+\end_layout
+
+\begin_layout Itemize
+It is important that nodes that leave the network pass on their data and
+ terminate the connections properly.
+ Even if an error occurs the application should try to leave the network
+ properly to increase its stability.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Sub-protocols
+\end_layout
+
+\begin_layout Subsection
+Forwardings
+\end_layout
+
+\begin_layout Standard
+The forwarding sub-protocol allows nodes to set up relay rules in other
+ nodes to disguise their identity.
+ A node (controller) can set up a forwarding rule in another node (relay)
+ by sending a 
+\emph on
+Forward
+\emph default
+ message.
+ The 
+\emph on
+Forward
+\emph default
+ messages can contain the following fields:
+\end_layout
+
+\begin_layout Description
+operation The field operation is set to 
+\emph on
+request
+\emph default
+ for all messages from the controller to the relay and set to 
+\emph on
+reply
+\emph default
+ for all messages from the relay to the controller.
+ All request messages must be replied with a reply message.
+\end_layout
+
+\begin_layout Description
+state The field 
+\emph on
+state
+\emph default
+ is set in a request to set up (active) or tear down (inactive) forwarding
+ rules and in a reply to inform the receiver about the current state of
+ the forwarding rule.
+\end_layout
+
+\begin_layout Description
+inId/inHandle The fields 
+\emph on
+inId
+\emph default
+ and 
+\emph on
+inHandle
+\emph default
+ define the part of the forwarding rule that detects messages received by
+ the relay that should be forwarded to the controller node.
+ If these fields are unset in a request, the relay can use its own id and
+ a free random handle.
+ In a reply message, these fields should then be set to the actual values.
+\end_layout
+
+\begin_layout Description
+outId/outHandle The fields 
+\emph on
+outId
+\emph default
+ and 
+\emph on
+outHandle
+\emph default
+ define the destination of the forwarding rule.
+ The controller is free to define these and does not have to give its own
+ information.
+\end_layout
+
+\begin_layout Description
+timeout The field 
+\emph on
+timeout
+\emph default
+ defines the duration that the forwarding rule should be active in a request
+ and the rest of the duration in a reply message in seconds.
+ The relay is free to reduce the value that has been requested by the controller.
+\end_layout
+
+\begin_layout Description
+delay The field 
+\emph on
+delay
+\emph default
+ can be set to a positive value to require the relay node to wait a random
+ time up to the given value before forwarding each message.
+ This field is only needed in some borderline scenarios to guarantee full
+ deniability.
+\end_layout
+
+\begin_layout Standard
+When the controller wants to set up a forwarding rule, it chooses an id
+ of a known node as relay and sends a forward request to it.
+ When the relay node receives the forward request, it will put the information
+ in the forwarding rules table and send a reply with the information.
+ From now on, the forwarding rule is active and it will stay active as long
+ as the controller sends new requests within the timeout periods.
+\end_layout
+
+\begin_layout Standard
+When the relay node receives a message, it will consult the forwarding rules
+ table to see if the message should be forwarded.
+ If so, it will substitute the values of the dstId and the dstHandle fields
+ with the outId and outHandle of the rule and forward the modified message
+ via normal routing.
+ Note that the message is only modified and no new message is created.
+ This means that it still contains the source id and handle of the original
+ source and the TTL value will not be reset.
+\end_layout
+
+\begin_layout Standard
+Relay nodes are responsible of sending the forwarding rule to new peers
+ that join the network (if appropriate) and to direct neighbors when leaving
+ the network.
+\end_layout
+
+\begin_layout Standard
+Since the controller is not required to provide its own id as outId, it
+ can set up forwarding chains.
+ To restrict the length of these forwarding chains and to avoid forwarding
+ loops, the TTL value of forwarded messages is not reset to its original
+ value during forwarding.
+\end_layout
+
+\begin_layout Standard
+The controller can force other nodes to use its relay nodes by using the
+ inId and inHandle in its messages as srcId and srcHandle.
+ Since the routing mechanism does not use the source id and handle, messages
+ with faked sender information will reach their destination like normal
+ messages.
+ The receiver of such a message will use the faked information for its replies
+ and will automatically use the relay node.
+\end_layout
+
+\begin_layout Standard
+This enables a perfect deniability for the controller.
+ It can always pretend to be a relay node and to only forward the messages
+ that it actually receives and processes.
+ On the other hand the controller can always pretend that the messages that
+ originate from it are just relayed messages sent by another node (if it
+ subtracts a random amount of pretended hops from the 
+\emph on
+ttl
+\emph default
+ field).
+ The controller can even use the forwarding chain to disguise its identity
+ when setting up or renewing forwardings of that same chain.
+\end_layout
+
+\begin_layout Standard
+Since forwarding messages means to receive a message and to send another
+ message directly afterwards, an attacker that can spy on all connections
+ of a node could possibly detect that the node is the original sender or
+ receiver of a message if it sends without receiving or receives without
+ sending.
+ If this is a concern, forwardings with delays can be used to decouple sendings
+ from receivings on a temporal scale.
+\end_layout
+
+\begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:Distributed-Hash-Table"
+
+\end_inset
+
+Distributed Hash-Table
+\end_layout
+
+\begin_layout Standard
+The DHT sub-protocol allows peers to use the network as a global key-value
+ mapping.
+ Nodes can store/retrieve (key,value) entries in/from the DHT by using DHTMessag
+es with the following fields:
+\end_layout
+
+\begin_layout Description
+operation This field distinguishes store (set) and retrieve (get) requests
+ from their replies (data).
+ Each request (either get or set) must be answered with a data message.
+\end_layout
+
+\begin_layout Description
+hash This field defines the location of the entry in the id ring.
+ Applications are free to define an algorithm to calculate hashes based
+ on the key.
+\end_layout
+
+\begin_layout Description
+key This field holds the key of the entry.
+ It is present in the message to avoid hash collisions.
+ The key is limited to a reasonable size (default: 2 KiB)
+\end_layout
+
+\begin_layout Description
+value This field holds the data of the entry.
+ This field is not used for get requests.
+ If it is omitted in set requests or in data replies that means that the
+ entry should be deleted (set request) or does not exist (data replies).
+ The value is limited to a reasonable size (default: 512 KiB)
+\end_layout
+
+\begin_layout Description
+firstAge/lastAge These fields store the time in seconds since the first
+ and last time a value has been set for that key.
+ The field is normally only used in data replies.
+ It is used in set requests when a node forwards entries on joins of new
+ nodes or when it is leaving the network.
+\end_layout
+
+\begin_layout Description
+timeout The field 
+\emph on
+timeout
+\emph default
+ defines the duration (in seconds) that the entry should be stored for if
+ used in a request and defines the rest of the duration if used in a reply
+ message.
+ The storing node is free to reduce the value that has been requested.
+\end_layout
+
+\begin_layout Standard
+All requests for a key (either set or get) are sent to the hash as destination
+ id with the routing policy 
+\emph on
+left
+\emph default
+.
+ Nodes that store entries are responsible for sending the entries to new
+ peers that join the network and to direct neighbors when leaving the network
+ to ensure that the entry is located at the node that will be reached by
+ requests for it.
+\end_layout
+
+\begin_layout Standard
+When a node wants to bind a value to a key, it sends a set request to the
+ hash of the key.
+ When the storage node receives the set request, it will put the entry in
+ its local DHT table and send a data reply with the entry back to the sender
+ of the request.
+ From now on the key is associated with the value and it will stay associated
+ if the controller sends new requests within the timeout period.
+\end_layout
+
+\begin_layout Standard
+The protocol does not define a format for the key or the value other than
+ byte array but encourages applications to use protocol buffer encoding
+ for more complex messages.
+ Applications should use the DHT to assign global names to services running
+ on nodes.
+ The messages 
+\emph on
+ServiceName
+\emph default
+ and 
+\emph on
+ServiceAddress
+\emph default
+ can be used to encode the key and value of the DHT entries.
+ 
+\end_layout
+
+\begin_layout Standard
+Note that the DHT protocol does not define a hashing scheme, so that the
+ application is free to define that on its own.
+ However, the algorithm that is used should provide an even distribution
+ of hashes over the whole id range.
+ (Cryptographic hash algorithms are good candidates.) Applications can also
+ use a hashing scheme that produces multiple hashes per key (e.g.
+ by hashing multiple times or by seeding the hash) and send set and get
+ requests to all hashes when they want to have a redundant storage.
+\end_layout
+
+\begin_layout Standard
+Application developers should be aware that all keys share a global name
+ space and will cause collisions for identical keys that are hashed by the
+ same hashing scheme.
+ Developers should prevent collisions by integrating a magic value into
+ their keys that distinguishes them from keys of other applications.
+\end_layout
+
+\begin_layout Subsubsection
+Naming system
+\end_layout
+
+\begin_layout Standard
+The DHT system can be easily used to implement a naming system.
+ The name is encoded as bytes into the key with a prefix used to distinguish
+ different name spaces.
+ The address is stored as the value of the entry.
+ The node that is binding the name is responsible for updating and renewing
+ the entry.
+\end_layout
+
+\begin_layout Subsubsection
+Pub/Sub system
+\end_layout
+
+\begin_layout Standard
+A pub/sub system can be implemented by using the forward feature in a way
+ that all subscribers register as forward receivers and publishers store
+ new messages as entries in overwrite mode.
+\end_layout
+
+\begin_layout Subsubsection
+Message queues
+\end_layout
+
+\begin_layout Standard
+Message queues can be implemented by appending to DHT entries.
+ The owner of a queue can register as listener and read and delete messages
+ atomically by using appropriate operations.
+\end_layout
+
+\begin_layout Subsubsection
+Redundancy
+\end_layout
+
+\begin_layout Standard
+Redundancy can be achieved by using a hash scheme that produces multiple
+ hash values (either by seeding or by hashing multiple times).
+ All messages are then sent to all hash addresses so that data retrieval
+ and modification requests hit all copies.
+ Application developers should note that the redundancy comes at the cost
+ of atomicity, i.e.
+ different requests could hit the copies in different order which could
+ lead to inconsistencies.
+\end_layout
+
+\begin_layout Section
+\start_of_appendix
+Protocol buffer message definition
+\end_layout
+
+\begin_layout Subsection
+Base protocol
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset include
+LatexCommand verbatiminput
+filename "../p2p.proto"
+lstparams "caption={Procol buffer}"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+DHT protocol
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset include
+LatexCommand verbatiminput
+filename "../dht.proto"
+lstparams "caption={Procol buffer}"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Peer selection python code
+\end_layout
+
+\begin_layout Section
+Routing python code
+\end_layout
+
+\begin_layout Section
+Example message sequence charts
+\end_layout
+
+\begin_layout Subsection
+Network joining
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset CommandInset include
+LatexCommand input
+preview true
+filename "join.msc.tex"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Peer list exchange
+\end_layout
+
+\begin_layout Subsection
+Routing
+\end_layout
+
+\begin_layout Subsection
+DHT
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset CommandInset include
+LatexCommand input
+preview true
+filename "dht.msc.tex"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Forwards
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset CommandInset include
+LatexCommand input
+preview true
+filename "forwards.msc.tex"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Enumerate
+The origin node sets up a forwarding to itself on node n1.
+\end_layout
+
+\begin_layout Enumerate
+The node n1 receives the forwarding request, sets up the forwarding rule
+ and sends the reply back to the origin node.
+\end_layout
+
+\begin_layout Enumerate
+The origin node waits for the confirmation and then decides to set up another
+ forwarding with node n2.
+ Therefore it sends a request message to n2 with the faked sender information
+ of its forwarding rule on n1.
+\end_layout
+
+\begin_layout Enumerate
+When n2 has set up the rule, it will send a reply to the forwarding rule
+ on node n1.
+\end_layout
+
+\begin_layout Enumerate
+When n1 receives the message from n2, it will trigger its forwarding rule
+ and forward the message to the origin node.
+\end_layout
+
+\begin_layout Enumerate
+Now that the origin has a chain of length 2, it starts its communication
+ with the node dst.
+ Therefore it sends its message to dst with the faked sender information
+ of its forwarding rule on node n2.
+\end_layout
+
+\begin_layout Enumerate
+When the node dst replies, it sends its message to n2.
+ Node n2 will forward the message to n1 and that node will finally deliver
+ it to the origin node.
+\end_layout
+
+\end_body
+\end_document
