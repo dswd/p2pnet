@@ -38,7 +38,6 @@ message BaseMessage {
   optional PeerList peers = 2;
   optional Peer ident = 3;
   repeated TrafficInfo trafficInfo = 4;
-  optional PingMessage ping = 5;
 
   optional Initialization init = 16;
   optional Join join = 17;
@@ -54,8 +53,9 @@ message PingMessage {
     PING = 1;
     PONG = 2;
   }
-  optional int32 id = 1;
-  optional bytes data = 2;
+  required Type type = 1;
+  optional int32 id = 2;
+  optional bytes data = 3;
 }
 
 message RoutedMessage {
@@ -70,8 +70,8 @@ message RoutedMessage {
   repeated fixed64 dstId = 2 [packed=true];
   optional fixed64 dstStart = 3;
   optional fixed64 dstEnd = 4;
-  optional int32 srcHandler = 5;
-  optional int32 dstHandler = 6;
+  optional int32 srcHandle = 5;
+  optional int32 dstHandle = 6;
 
   optional int32 ttl = 7 [default=127];
   optional DstPolicy policy = 8 [default=NOTIFY];
@@ -189,8 +189,8 @@ message Control {
     //[Routed] A message from the receiver to the id $id[0] reached ttl=0
     Routing_TtlReachedZero = 21;
 
-    //[Routed] The handler $number[0] is not bound on the sender
-    Routing_UnboundHandler = 22;
+    //[Routed] The handle $number[0] is not bound on the sender
+    Routing_UnboundHandle = 22;
 
     //[Routed] Failed to connect to node $peer[0]
     FailedToConnect = 40;

@@ -1,7 +1,7 @@
 import socket, thread, threading, select, cStringIO, logging, timer, time
 
-from google.protobuf.internal.decoder import _DecodeVarint as decodeVarint
-from google.protobuf.internal.encoder import _EncodeVarint as createVarintEncoder
+from google.protobuf.internal.decoder import _DecodeVarint as decodeVarint #@UnresolvedImport
+from google.protobuf.internal.encoder import _EncodeVarint as createVarintEncoder #@UnresolvedImport
 encodeVarint = createVarintEncoder
 
 logger = logging.getLogger(__name__)

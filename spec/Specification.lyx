@@ -1245,8 +1245,8 @@ ID randomness
 
 \begin_layout Standard
 Random ids will be created by generating a cryptographic key pair and using
- the lower 64 bits of the binary representation of the public key as the
- id.
+ the lower bits of the md5 sum of the binary representation of the public
+ key as the id.
  This way, the randomness of the id can be proved by proving that it stems
  from a public key of a valid key pair.
  Therefore, 

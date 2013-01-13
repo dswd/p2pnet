@@ -1,8 +1,12 @@
 import copy, math, logging
 
-from config import *
+from config import MAX_ID, DEFAULT_TTL, MAX_TTL, MAX_SHORT, MAX_LONG
+from . import proto
 
 logger = logging.getLogger(__name__)
+
+def isBetween(start, middle, end):
+	return start < middle < end or end <  start < middle or middle < end < start
 
 # Distance from id1 to id2 when going right
 def diffRight(id1, id2):
@@ -56,8 +60,23 @@ def closestPeer(peers, dstId, idFn, diff=diffBidi):
 			minPeer = peer
 	return minPeer
 	
+def neighbors(peers, dstId, idFn):
+	minDiffLeft = MAX_ID
+	minDiffRight = MAX_ID
+	minPeerLeft = None
+	minPeerRight = None
+	for peer in peers:
+		peerId = idFn(peer) 
+		if diffLeft(peerId, dstId) < minDiffRight:
+			minDiffRight = diffLeft(peerId, dstId)
+			minPeerRight = peer
+		if diffRight(peerId, dstId) < minDiffLeft:
+			minDiffLeft = diffRight(peerId, dstId)
+			minPeerLeft = peer
+	return (minPeerLeft, minPeerRight)
 	
-def route(msg, ident, peers):
+	
+def route(msg, myId, peers, idFn):
 	assert isinstance(msg, proto.RoutedMessage)
 	logger.debug("Forwarding:\n%s", msg)
 	outDst = {} # outgoing unicast messages per next hop as a list
@@ -77,45 +96,45 @@ def route(msg, ident, peers):
 	# Unicast destinations
 	for dstId in msg.dstId:
 		# check if message is for us
-		if dstId == ident.id:
+		if dstId == myId:
 			forMe.append(setDst(copy.deepcopy(msg), [dstId]))
 			continue
 
 		# check if we are the closest peer to the left of dstId
-		if msg.policy == proto.RoutedMessage.LEFT:
-			closestLeft = closestPeer(peers, dstId, diff=diffRight)
-			if diffRight(ident.id, dstId) <= diffRight(closestLeft.ident.id, dstId):
+		if msg.policy == proto.RoutedMessage.LEFT: #@UndefinedVariable
+			closestLeft = closestPeer(peers, dstId, idFn, diff=diffRight)
+			if diffRight(myId, dstId) <= diffRight(idFn(closestLeft), dstId):
 				forMe.append(setDst(copy.deepcopy(msg), [dstId]))
 				continue					
 					
 		# check if we are the closest peer to the right of dstId
-		if msg.policy == proto.RoutedMessage.RIGHT:
-			closestRight = closestPeer(peers, dstId, diff=diffLeft)
-			if diffLeft(ident.id, dstId) <= diffLeft(closestRight.ident.id, dstId):
+		if msg.policy == proto.RoutedMessage.RIGHT: #@UndefinedVariable
+			closestRight = closestPeer(peers, dstId, idFn, diff=diffLeft)
+			if diffLeft(myId, dstId) <= diffLeft(idFn(closestRight), dstId):
 				forMe.append(setDst(copy.deepcopy(msg), [dstId]))
 				continue					
 					
 		# find closest peer in peer list
-		nextHop = closestPeer(peers, dstId, diff=diffBidi)
+		nextHop = closestPeer(peers, dstId, idFn, diff=diffBidi)
 		logger.debug("Next hop for %d: %s", dstId, nextHop)
 
-		if diffBidi(ident.id, dstId) <= diffBidi(nextHop.ident.id, dstId):
+		if nextHop and (diffBidi(myId, dstId) <= diffBidi(idFn(nextHop), dstId)):
 			# next hop must be closer
 			nextHop = None
 			
 		if not nextHop:
 			logger.warning("Unable to find next hop for %d", dstId)
-			if msg.policy == proto.RoutedMessage.NOTIFY:
+			if msg.policy == proto.RoutedMessage.NOTIFY: #@UndefinedVariable
 				dstUnknown.append(dstId)
 				continue
-			elif msg.policy == proto.RoutedMessage.CLOSEST:
+			elif msg.policy == proto.RoutedMessage.CLOSEST: #@UndefinedVariable
 				forMe.append(setDst(copy.deepcopy(msg, [dstId])))
 				continue
-			elif msg.policy == proto.RoutedMessage.DROP:
+			elif msg.policy == proto.RoutedMessage.DROP: #@UndefinedVariable
 				continue
-			elif msg.policy == proto.RoutedMessage.LEFT:
+			elif msg.policy == proto.RoutedMessage.LEFT: #@UndefinedVariable
 				nextHop = closestPeer(peers, dstId, diff=diffRight)
-			elif msg.policy == proto.RoutedMessage.RIGHT:
+			elif msg.policy == proto.RoutedMessage.RIGHT: #@UndefinedVariable
 				nextHop = closestPeer(peers, dstId, diff=diffLeft)
 		if nextHop:
 			outDst[nextHop] = outDst.get(nextHop, [])
@@ -129,12 +148,12 @@ def route(msg, ident, peers):
 	if msg.ttl == 0:
 		#FIXME: send control message
 		logger.warning("Message reached zero ttl:\n%s", msg)
-		outList = []
+		outList = {}
 		dstUnknown = []
 	
 	# Broadcast message
 	if msg.HasField("dstStart") and msg.HasField("dstEnd"):
-		left, right = relPosSplit(ident, list(peers))
+		left, right = relPosSplit(myId, list(peers))
 		#FIXME: broadcast
 		logger.warning("Broadcast not supported yet, dropping message")
 		

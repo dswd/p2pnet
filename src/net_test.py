@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 if __name__ == "__main__":
-	from test import run
-	from net import Node
-	from proto import BaseMessage
+	from p2pnet.test import run
+	from p2pnet.net import Node
+	from p2pnet.proto import BaseMessage
 	node = Node(BaseMessage)
 	node.start()
 	run(node)
