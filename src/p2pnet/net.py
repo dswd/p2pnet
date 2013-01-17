@@ -113,7 +113,7 @@ class Connection:
 	def _receiveData(self):
 		try:
 			self.rbuffer += self.socket.recv(self.bufferSize)
-		except Exception, exc:
+		except Exception, exc: #@UnusedVariable
 			#logger.exception(exc)
 			return self.close()
 		if not self.rbuffer:
@@ -160,7 +160,7 @@ class Connection:
 		try:
 			self._send(msg, force)
 			return True
-		except Exception, exc:
+		except Exception, exc: #@UnusedVariable
 			#logger.exception(exc)
 			self.wmsgs.append(msg)
 			return False
@@ -223,7 +223,7 @@ class Node:
 		undocumented
 		"""
 		return self.running in threading.enumerate()
-	def open(self, port=0, host='', addressFamily=socket.AF_INET):
+	def open(self, port=0, host='', addressFamily=socket.AF_INET): #@ReservedAssignment
 		"""
 		undocumented
 		"""
@@ -277,7 +277,8 @@ class Node:
 			return self.connections[address]
 		sock = socket.socket(addressFamily, socket.SOCK_STREAM)
 		sock.connect(address[1:])
-		return Connection(self, sock)
+		con = Connection(self, sock)
+		return con
 	def getConnection(self, address):
 		"""
 		undocumented

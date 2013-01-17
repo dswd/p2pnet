@@ -66,7 +66,6 @@ class Peer:
 		self.init = None
 		self.ident = None
 		self.peers = []
-		self.node.peersByCon[connection.getUuid()] = self
 		self.con.send(init=config.INITIALIZATION_MESSAGE, ident=self.node.getIdent())
 	def getAddress(self):
 		return self.con.getAddress()
@@ -117,6 +116,10 @@ class Peer:
 		return str(self)
 
 class Node:
+	
+	JOIN_STATE_PENDING = 1
+	JOIN_STATE_FINISHED = 2
+	
 	def __init__(self):
 		"""
 		undocumented
@@ -210,15 +213,21 @@ class Node:
 		"""
 		undocumented
 		"""
-		self.net.connect(*args, **kwargs)
+		con = self.net.connect(*args, **kwargs)
+		peer = self._addConnection(con)
+		if not self.peers:
+			peer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
+			self.joinState[peer] = proto.Join.DISCOVER #@UndefinedVariable
 	def _connectTo(self, ident):
 		#TODO: try multiple addresses
 		if not ident.address:
 			return
 		addr = decodeAddress(ident.address[0])
-		if self.net.getConnection(addr):
-			return
-		self.net.connectTo(addr)
+		con = self.net.getConnection(addr)
+		if con:
+			self._getPeer(con)
+		con = self.net.connectTo(addr)
+		return self._addConnection(con)
 	def part(self):
 		"""
 		undocumented
@@ -233,21 +242,39 @@ class Node:
 			self._handleJoinAsClient(peer, join)
 	def _handleJoinAsClient(self, peer, join):
 		if not peer in self.joinState:
+			# For security reasons we do not react on join messages that we did not trigger
 			return
 		if join.step == proto.Join.FORWARD: #@UndefinedVariable
+			# Forgetting old peer and starting over with new peer
 			del self.joinState[peer]
-			self._connectTo(join.nextPeer)
+			peer = self._connectTo(join.nextPeer)
+			peer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
+			self.joinState[peer] = Node.JOIN_STATE_PENDING
 		elif join.step == proto.Join.OFFER: #@UndefinedVariable
-			self.joinState[peer] = proto.Join.ACCEPT #@UndefinedVariable
+			# Determine other neighbor from peer list
+			neighbors = algorithm.neighbors(peer.peers[:] + [peer.ident], self.getId(), lambda p: p.id)
+			otherPeer = filter(lambda p: p.id != peer.ident.id, neighbors)
+			if otherPeer:
+				# Start join process with that peer as well
+				otherPeer = otherPeer[0]
+				oPeer = self._connectTo(otherPeer)
+				if not oPeer in self.joinState:
+					self.joinState[oPeer] = Node.JOIN_STATE_PENDING
+					oPeer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
+			# Send ACCEPT to the peer we got the OFFER from
 			peer.send(join=proto.Join(step=proto.Join.ACCEPT)) #@UndefinedVariable
-			#TODO: determine second peer and its join state
-			# send discover to second peer it no join state
 		elif join.step == proto.Join.FINISHED: #@UndefinedVariable
-			#TODO: determine other peer join state
-			# if both peers have join state finished
-			#   add both peers as peers and emit joined event
-			self.peers.append(peer)
+			# Fine, we are in the peer list of this peer
+			self.joinState[peer] = Node.JOIN_STATE_FINISHED
+			for peer, jState in self.joinState.iteritems():
+				if jState != Node.JOIN_STATE_FINISHED:
+					# Not all peers have added us to their peer lists
+					return
+			# Add all joined peers to our peer list and built initial peer list based on their peers
+			for peer in self.joinState.keys():
+				self.peers.append(peer)
 			self._updatePeers()
+			#TODO: emit joined event
 	def _handleJoinAsServer(self, peer, join):
 		left, right = self.neighbors()
 		if (not left and not right) or (left.getId() == right.getId()) or algorithm.isBetween(left.getId(), peer.getId(), right.getId()):
@@ -261,13 +288,16 @@ class Node:
 			nextHop = algorithm.closestPeer(self._getPeers(), peer.getId(), Peer.getId)
 			peer.send(join=proto.Join(step=proto.Join.FORWARD, nextPeer=nextHop.getIdent())) #@UndefinedVariable
 	def _handleConnect(self, address, connection):
-		peer = Peer(self, connection)
-		if not self.peers:
-			peer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
-			self.joinState[peer] = proto.Join.DISCOVER #@UndefinedVariable
-		self._sendPeerListTo(peer, shouldReply=True) #TODO: remove
+		self._addConnection(connection)
 	def _getPeer(self, connection):
 		return self.peersByCon.get(connection.getUuid())
+	def _addConnection(self, connection):
+		peer = self._getPeer(connection)
+		if peer:
+			return peer
+		peer = Peer(self, connection)
+		self.peersByCon[connection.getUuid()] = peer
+		return peer
 	def _removeConnection(self, connection):
 		uuid = connection.getUuid()
 		if uuid in self.peersByCon:
