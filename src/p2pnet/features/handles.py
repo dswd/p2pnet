@@ -17,12 +17,10 @@ class Feature:
     def __init__(self, node):
         self.node = node
         self.handles = {}
-        node.addListener(self._handleEvent)
+        node.addListener(self._handleEvent, Event.TYPE_MESSAGE_ROUTED)
         node.bindHandle = self.bindHandle
         node.isHandleBound = self.isHandleBound
     def _handleEvent(self, evt):
-        if evt.getType() != Event.TYPE_MESSAGE_ROUTED:
-            return
         msg = evt.getData()
         for ctrl in msg.routedControl:
             if ctrl.code == proto.Control.Routing_UnboundHandle: #@UndefinedVariable

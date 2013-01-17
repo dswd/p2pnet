@@ -16,12 +16,10 @@ Event.TYPE_HANDLE_UNBOUND = "handle_unbound"
 class Feature:
     def __init__(self, node):
         self.node = node
-        node.addListener(self._handleEvent)
+        node.addListener(self._handleEvent, Event.TYPE_MESSAGE_ROUTED)
         node.ping = self.ping
         self.pings = {}
     def _handleEvent(self, evt):
-        if evt.getType() != Event.TYPE_MESSAGE_ROUTED:
-            return
         msg = evt.getData()
         if not msg.HasField("pingMsg"):
             return

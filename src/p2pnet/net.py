@@ -1,8 +1,10 @@
-import socket, thread, threading, select, cStringIO, logging, timer, time, flag
+import socket, thread, threading, select, cStringIO, logging, time
 
 from google.protobuf.internal.decoder import _DecodeVarint as decodeVarint #@UnresolvedImport
 from google.protobuf.internal.encoder import _EncodeVarint as createVarintEncoder #@UnresolvedImport
 encodeVarint = createVarintEncoder
+
+from . import timer, flag, event
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ def publicIp(family=socket.AF_INET):
 		logger.error("Failed to detect public IP address: %s", exc)
 		return '127.0.0.1'
 
-class Event:
+class Event(event.Event):
 	"""
 	undocumented
 	"""
@@ -30,32 +32,21 @@ class Event:
 	TYPE_CONNECT = "connect"
 	TYPE_MSG_TOO_LARGE = "msg_too_large"
 	def __init__(self, type, address=None, connection=None, data=None): #@ReservedAssignment
-		self.type = type
+		event.Event.__init__(self, type, data)
 		self.address = address
 		self.connection = connection
-		self.data = data
-	def getType(self):
-		"""
-		undocumented
-		"""
-		return self.type
 	def getAddress(self):
 		"""
 		undocumented
 		"""
 		return self.address
-	def getData(self):
-		"""
-		undocumented
-		"""
-		return self.data
 	def getConnection(self):
 		"""
 		undocumented
 		"""
 		return self.connection
 	def __repr__(self):
-		return "Event(%s, %s, %r)" % (self.type, self.address, self.data)
+		return "Event(%s, %s, %r)" % (self.getType(), self.address, self.getData())
 
 class Connection:
 	"""
@@ -194,13 +185,13 @@ class Connection:
 	def _event(self, **kwargs):
 		self.node._event(address=self.getAddress(), connection=self, **kwargs)
 
-class Node:
+class Node(event.Manager):
 	"""
 	undocumented
 	"""
 	def __init__(self, msgType, msgSizeLimit=2**20, bufferSize=4096):
+		event.Manager.__init__(self)
 		self.running = False
-		self.listeners = set()
 		self.msgType = msgType
 		self.msgSizeLimit = msgSizeLimit
 		self.bufferSize = bufferSize
@@ -296,16 +287,6 @@ class Node:
 		undocumented
 		"""
 		return self.connections.values()
-	def addListener(self, listener):
-		"""
-		undocumented
-		"""
-		self.listeners.add(listener)
-	def removeListener(self, listener):
-		"""
-		undocumented
-		"""
-		self.listeners.remove(listener)
 	def _acceptConnection(self, sock):
 		(socket, _) = sock.accept()
 		Connection(self, socket)
@@ -336,11 +317,7 @@ class Node:
 	def _event(self, **kwargs):
 		event = Event(**kwargs)
 		logger.info(event)
-		for listener in self.listeners:
-			try:
-				listener(event)
-			except Exception, exc:
-				logger.exception(exc)
+		self.triggerEvent(event)
 	def schedule(self, func, timeout, repeated=False, strict=False, args=[], kwargs={}):
 		timer.schedule(func, timeout, repeated, strict, args, kwargs)
 		self._triggerFlag.set() # Reset wait loop to include this timer if it is close

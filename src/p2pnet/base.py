@@ -1,8 +1,9 @@
-import net, proto, algorithm, config, time
-import socket, random, logging
+import socket, random, logging, time
 from google.protobuf import text_format #@UnresolvedImport
 
 logger = logging.getLogger(__name__)
+
+from . import net, proto, algorithm, config, event
 
 # TODO: Part procedure
 # TODO: Edge peers
@@ -30,35 +31,30 @@ def decodeAddress(addr):
 def m2s(msg):
 	return text_format.MessageToString(msg, as_one_line=True)
 
-class Event:
+class Event(event.Event):
 	"""
 	undocumented
 	"""
 	TYPE_MESSAGE_ROUTED = "message_routed"
+	TYPE_MESSAGE_JOIN = "message_join"
 	TYPE_NODE_UNREACHABLE = "node_unreachable"
 	TYPE_MESSAGE_INVALID = "message_invalid"
-	TYPE_NETWORK_JOINED = "network_joined"
-	def __init__(self, type, node=None, data=None): #@ReservedAssignment
-		self.type = type
+	def __init__(self, type, peer=None, node=None, data=None): #@ReservedAssignment
+		event.Event.__init__(self, type, data)
 		self.node = node
-		self.data = data
-	def getType(self):
+		self.peer = peer
+	def getPeer(self):
 		"""
 		undocumented
 		"""
-		return self.type
+		return self.peer
 	def getNode(self):
 		"""
 		undocumented
 		"""
 		return self.node
-	def getData(self):
-		"""
-		undocumented
-		"""
-		return self.data
 	def __repr__(self):
-		return "Event(%s, %s, %r)" % (self.type, self.node, self.data)
+		return "Event(%s, %s, %s, %r)" % (self.getType(), self.peer, self.node, self.getData())
 
 class Peer:
 	def __init__(self, node, connection):
@@ -106,7 +102,7 @@ class Peer:
 			if msg.peers.shouldReply:
 				self.node._sendPeerListTo(self, shouldReply=False)
 		if msg.HasField("join"):
-			self.node._handleJoin(self, msg.join)
+			self._event(type=Event.TYPE_MESSAGE_JOIN, data=msg.join)
 		if self._isAllowed():
 			for rmsg in msg.routed:
 				self.node._route(rmsg)
@@ -116,26 +112,23 @@ class Peer:
 	def __repr__(self):
 		return str(self)
 
-class Node:
-	
-	JOIN_STATE_PENDING = 1
-	JOIN_STATE_FINISHED = 2
-	
+class Node(event.Manager):
 	def __init__(self):
 		"""
 		undocumented
 		"""
 		self.ident = proto.Peer(id=generateId(), reachable=True)
-		self.listeners = []
+		event.Manager.__init__(self)
 		logger.debug("Ident: %s", self.ident)
 		logger.info("ID: %d", self.ident.id)
 		self.net = net.Node(proto.BaseMessage)
-		self.net.addListener(self._handleEvent)
+		self.net.addListener(self._handleMessage, net.Event.TYPE_MESSAGE)
+		self.net.addListener(self._handleConnect, net.Event.TYPE_CONNECT)
+		self.net.addListener(self._handleDisconnect, net.Event.TYPE_DISCONNECT)
 		self.peersByCon = {}
 		self.peersById = {}
 		self.peers = []
 		self.edgePeers = []
-		self.joinState = {}
 		#FIXME: determine reachability
 		self._rebuildIdent()
 		self.net.schedule(self._sendPeerList, config.PEER_LIST_INTERVAL, repeated=True)
@@ -210,15 +203,6 @@ class Node:
 		undocumented
 		"""
 		return self.net.getAddresses()
-	def join(self, *args, **kwargs):
-		"""
-		undocumented
-		"""
-		con = self.net.connect(*args, **kwargs)
-		peer = self._addConnection(con)
-		if not self.peers:
-			peer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
-			self.joinState[peer] = proto.Join.DISCOVER #@UndefinedVariable
 	def _connectTo(self, ident):
 		#TODO: try multiple addresses
 		if not ident.address:
@@ -236,60 +220,8 @@ class Node:
 		return
 	def neighbors(self):
 		return algorithm.neighbors(self._getPeers(), self.getId(), Peer.getId)
-	def _handleJoin(self, peer, join):
-		if join.step in [proto.Join.DISCOVER, proto.Join.ACCEPT]: #@UndefinedVariable
-			self._handleJoinAsServer(peer, join)
-		elif join.step in [proto.Join.FORWARD, proto.Join.OFFER, proto.Join.FINISHED]: #@UndefinedVariable
-			self._handleJoinAsClient(peer, join)
-	def _handleJoinAsClient(self, peer, join):
-		if not peer in self.joinState:
-			# For security reasons we do not react on join messages that we did not trigger
-			return
-		if join.step == proto.Join.FORWARD: #@UndefinedVariable
-			# Forgetting old peer and starting over with new peer
-			del self.joinState[peer]
-			peer = self._connectTo(join.nextPeer)
-			peer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
-			self.joinState[peer] = Node.JOIN_STATE_PENDING
-		elif join.step == proto.Join.OFFER: #@UndefinedVariable
-			# Determine other neighbor from peer list
-			neighbors = algorithm.neighbors(peer.peers[:] + [peer.ident], self.getId(), lambda p: p.id)
-			otherPeer = filter(lambda p: p.id != peer.ident.id, neighbors)
-			if otherPeer:
-				# Start join process with that peer as well
-				otherPeer = otherPeer[0]
-				oPeer = self._connectTo(otherPeer)
-				if not oPeer in self.joinState:
-					self.joinState[oPeer] = Node.JOIN_STATE_PENDING
-					oPeer.send(join=proto.Join(step=proto.Join.DISCOVER)) #@UndefinedVariable
-			# Send ACCEPT to the peer we got the OFFER from
-			peer.send(join=proto.Join(step=proto.Join.ACCEPT)) #@UndefinedVariable
-		elif join.step == proto.Join.FINISHED: #@UndefinedVariable
-			# Fine, we are in the peer list of this peer
-			self.joinState[peer] = Node.JOIN_STATE_FINISHED
-			for peer, jState in self.joinState.iteritems():
-				if jState != Node.JOIN_STATE_FINISHED:
-					# Not all peers have added us to their peer lists
-					return
-			# Add all joined peers to our peer list and built initial peer list based on their peers
-			for peer in self.joinState.keys():
-				self.peers.append(peer)
-			self._updatePeers()
-			self._event(type=Event.TYPE_NETWORK_JOINED)
-	def _handleJoinAsServer(self, peer, join):
-		left, right = self.neighbors()
-		if (not left and not right) or (left.getId() == right.getId()) or algorithm.isBetween(left.getId(), peer.getId(), right.getId()):
-			if join.step == proto.Join.DISCOVER: #@UndefinedVariable
-				peer.send(join=proto.Join(step=proto.Join.OFFER), peers=self._peerList(False)) #@UndefinedVariable
-				#TODO: send DHT data
-			elif join.step == proto.Join.ACCEPT: #@UndefinedVariable
-				self.peers.append(peer)
-				peer.send(join=proto.Join(step=proto.Join.FINISHED)) #@UndefinedVariable
-		else:
-			nextHop = algorithm.closestPeer(self._getPeers(), peer.getId(), Peer.getId)
-			peer.send(join=proto.Join(step=proto.Join.FORWARD, nextPeer=nextHop.getIdent())) #@UndefinedVariable
-	def _handleConnect(self, address, connection):
-		self._addConnection(connection)
+	def _handleConnect(self, event):
+		self._addConnection(event.getConnection())
 	def _getPeer(self, connection):
 		return self.peersByCon.get(connection.getUuid())
 	def _addConnection(self, connection):
@@ -305,7 +237,8 @@ class Node:
 			peer = self.peersByCon[uuid]
 			del self.peersByCon[uuid]
 			return peer
-	def _handleDisconnect(self, address, connection):
+	def _handleDisconnect(self, event):
+		connection = event.getConnection()
 		peer = self._removeConnection(connection)
 		if not peer:
 			logger.warn("Unknown connection disconnected: %s" % connection)
@@ -327,19 +260,14 @@ class Node:
 				logger.warn("Failed to reconnect to peer: %s", peer)
 			self._updatePeers()
 			self._sendPeerList() # Sending updated peer list to all peers
-	def _handleMessage(self, address, connection, message):
+	def _handleMessage(self, event):
+		connection = event.getConnection()
+		message = event.getData()
 		peer = self._getPeer(connection)
 		if peer:
 			peer._handleMessage(message)
 		else:
 			logger.warn("Ignoring message from unknown connection: %s", connection)
-	def _handleEvent(self, event):
-		if event.type == net.Event.TYPE_MESSAGE:
-			self._handleMessage(event.getAddress(), event.getConnection(), event.getData())
-		elif event.type == net.Event.TYPE_CONNECT:
-			self._handleConnect(event.getAddress(), event.getConnection())
-		elif event.type == net.Event.TYPE_DISCONNECT:
-			self._handleDisconnect(event.getAddress(), event.getConnection())
 	def send(self, dstId, srcId=None, **kwargs):
 		"""
 		undocumented
@@ -369,25 +297,10 @@ class Node:
 				for id_ in ctrl.id:
 					self._event(type=Event.TYPE_NODE_UNREACHABLE, node=id_, data=msg)
 		self._event(type=Event.TYPE_MESSAGE_ROUTED, data=msg)
-	def addListener(self, listener):
-		"""
-		undocumented
-		"""
-		self.listeners.append(listener)
-	def removeListener(self, listener):
-		"""
-		undocumented
-		"""
-		self.listeners.remove(listener)
 	def _event(self, **kwargs):
 		event = Event(**kwargs)
 		logger.info(event)
-		print event
-		for listener in self.listeners:
-			try:
-				listener(event)
-			except Exception, exc:
-				logger.exception(exc)
+		self.triggerEvent(event)
 	def _updatedIdent(self, peer):
 		if peer.getId() in self.peersById:
 			# Another connection exists with that peer, select one and close it.
