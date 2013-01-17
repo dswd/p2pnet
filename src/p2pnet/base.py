@@ -1,4 +1,4 @@
-import net, proto, algorithm, timer, config, time
+import net, proto, algorithm, config, time
 import socket, random, logging
 from google.protobuf import text_format #@UnresolvedImport
 
@@ -137,8 +137,8 @@ class Node:
 		self.joinState = {}
 		#FIXME: determine reachability
 		self._rebuildIdent()
-		timer.schedule(self._sendPeerList, config.PEER_LIST_INTERVAL, repeated=True)
-		timer.schedule(self._cleanup, config.CLEANUP_INTERVAL, repeated=True)
+		self.net.schedule(self._sendPeerList, config.PEER_LIST_INTERVAL, repeated=True)
+		self.net.schedule(self._cleanup, config.CLEANUP_INTERVAL, repeated=True)
 	def _peerList(self, shouldReply):
 		peers = [p.getIdent() for p in self._getPeers()]
 		return  proto.PeerList(peers=peers, shouldReply=shouldReply)

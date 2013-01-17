@@ -1,4 +1,4 @@
-import socket, thread, threading, select, cStringIO, logging, timer, time
+import socket, thread, threading, select, cStringIO, logging, timer, time, flag
 
 from google.protobuf.internal.decoder import _DecodeVarint as decodeVarint #@UnresolvedImport
 from google.protobuf.internal.encoder import _EncodeVarint as createVarintEncoder #@UnresolvedImport
@@ -206,6 +206,7 @@ class Node:
 		self.bufferSize = bufferSize
 		self.connections = {}
 		self.servers = {}
+		self._triggerFlag = flag.Flag()
 	def start(self):
 		"""
 		undocumented
@@ -278,6 +279,7 @@ class Node:
 		sock = socket.socket(addressFamily, socket.SOCK_STREAM)
 		sock.connect(address[1:])
 		con = Connection(self, sock)
+		self._triggerFlag.set() # Reset wait loop to include this connection
 		return con
 	def getConnection(self, address):
 		"""
@@ -309,15 +311,17 @@ class Node:
 		Connection(self, socket)
 	def _select(self):
 		cons = filter(lambda c: c.fileno(), self.connections.values())
-		rsocks = self.servers.values()+cons
+		servers = self.servers.values()
+		rsocks = servers + cons + [self._triggerFlag]
 		wsocks = filter(lambda c: c._writePending(), cons)
 		timeout = max(min(timer.nextTimeout() or 10.0, 10.0), 0.0)
+		self._triggerFlag.clear()
 		(rlist, wlist, _) = select.select(rsocks, wsocks, rsocks, timeout)
 		for sock in rlist:
-			if sock in self.servers.values():
-				self._acceptConnection(sock)
-			else:
+			if sock in cons:
 				sock._triggerRead()
+			elif sock in servers:
+				self._acceptConnection(sock)
 		for sock in wlist:
 			sock._triggerWrite()
 		timer.check()		
@@ -337,3 +341,6 @@ class Node:
 				listener(event)
 			except Exception, exc:
 				logger.exception(exc)
+	def schedule(self, func, timeout, repeated=False, strict=False, args=[], kwargs={}):
+		timer.schedule(func, timeout, repeated, strict, args, kwargs)
+		self._triggerFlag.set() # Reset wait loop to include this timer if it is close
