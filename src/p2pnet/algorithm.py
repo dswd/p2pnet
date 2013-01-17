@@ -153,7 +153,7 @@ def route(msg, myId, peers, idFn):
 	
 	# Broadcast message
 	if msg.HasField("dstStart") and msg.HasField("dstEnd"):
-		left, right = relPosSplit(myId, list(peers))
+		left, right = relPosSplit(myId, list(peers)) #@UnusedVariable
 		#FIXME: broadcast
 		logger.warning("Broadcast not supported yet, dropping message")
 		

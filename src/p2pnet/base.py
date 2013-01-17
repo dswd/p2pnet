@@ -4,7 +4,7 @@ from google.protobuf import text_format #@UnresolvedImport
 
 logger = logging.getLogger(__name__)
 
-# TODO: Join/Part procedure
+# TODO: Part procedure
 # TODO: Edge peers
 # TODO: Public Keys
 # TODO: Broadcast

@@ -12,47 +12,47 @@ def parseArgs():
 def run(obj, allowSelf=True):
 	options = parseArgs()
 	logging.basicConfig(level=options.log, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-	locals = getLocals(obj, allowSelf)
+	locals_ = getLocals(obj, allowSelf)
 	if options.arguments:
-		runSource(locals, "\n".join(options.arguments))
+		runSource(locals_, "\n".join(options.arguments))
 	elif options.file:
-		runFile(locals, options.file, options)
+		runFile(locals_, options.file, options)
 	else:
-		runInteractive(locals)
+		runInteractive(locals_)
 
-def runInteractive(locals):
+def runInteractive(locals_): #@ReservedAssignment
 	readline.parse_and_bind("tab: complete")
-	readline.set_completer(rlcompleter.Completer(locals).complete)
-	console = code.InteractiveConsole(locals)
+	readline.set_completer(rlcompleter.Completer(locals_).complete)
+	console = code.InteractiveConsole(locals_)
 	console.interact('Type "help()" or "help(method)" for more information.')
 	
-def runSource(locals, source):
-	interpreter = code.InteractiveInterpreter(locals)
+def runSource(locals_, source):
+	interpreter = code.InteractiveInterpreter(locals_)
 	interpreter.runsource(source)
 
-def runFile(locals, file, options):
-	sys.path.insert(0, os.path.dirname(file))
+def runFile(locals_, file_, options):
+	sys.path.insert(0, os.path.dirname(file_))
 	def shell():
-		runInteractive(locals)
-	locals["shell"] = shell
-	__builtins__.__dict__.update(locals)
-	locals["__name__"]="__main__"
-	locals["__file__"]=file
-	execfile(file, locals)
+		runInteractive(locals_)
+	locals_["shell"] = shell
+	__builtins__.__dict__.update(locals_)
+	locals_["__name__"]="__main__"
+	locals_["__file__"]=file_
+	execfile(file_, locals_)
 	sys.path.pop(0)
 
 def getLocals(obj, allowSelf=True):
-	locals = {}
+	locals_ = {}
 	def _help(method=None):
 		if method is None:
 			print "Available methods:\tType help(method) for more infos."
-			print ", ".join(locals.keys())
+			print ", ".join(locals_.keys())
 		else:
 			if not isinstance(method, str):
-				method = filter(lambda name: locals[name] is method, locals)[0]
+				method = filter(lambda name: locals_[name] is method, locals_)[0]
 			if not method:
 				return "Unknown method: %s" % method
-			func = locals.get(method)
+			func = locals_.get(method)
 			argspec = inspect.getargspec(func)
 			if argspec.args:
 				argstr = inspect.formatargspec(argspec.args, defaults=argspec.defaults)
@@ -62,19 +62,19 @@ def getLocals(obj, allowSelf=True):
 			doc = func.__doc__
 			if not doc:
 				print "No documentation for: %s" % method
-	def _load(file, name=None):
-		files = filter(lambda dir: os.path.exists(os.path.join(dir, file)), sys.path)
+	def _load(file_, name=None):
+		files = filter(lambda dir_: os.path.exists(os.path.join(dir_, file_)), sys.path)
 		if files:
-			file = os.path.join(files[0], file)
+			file_ = os.path.join(files[0], file_)
 		if not name:
-			name = os.path.basename(file)
-		mod = imp.load_source(name, file)
-		locals[name] = mod
+			name = os.path.basename(file_)
+		mod = imp.load_source(name, file_)
+		locals_[name] = mod
 		return mod
-	locals.update(help=_help, load=_load)
+	locals_.update(help=_help, load=_load)
 	for func in dir(obj):
 		if not func.startswith("_") and callable(getattr(obj, func)):
-			locals[func] = getattr(obj, func)
+			locals_[func] = getattr(obj, func)
 	if allowSelf:
-		locals["self"] = obj
-	return locals
+		locals_["self"] = obj
+	return locals_
