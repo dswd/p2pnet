@@ -37,6 +37,7 @@ class Event:
 	TYPE_MESSAGE_ROUTED = "message_routed"
 	TYPE_NODE_UNREACHABLE = "node_unreachable"
 	TYPE_MESSAGE_INVALID = "message_invalid"
+	TYPE_NETWORK_JOINED = "network_joined"
 	def __init__(self, type, node=None, data=None): #@ReservedAssignment
 		self.type = type
 		self.node = node
@@ -274,7 +275,7 @@ class Node:
 			for peer in self.joinState.keys():
 				self.peers.append(peer)
 			self._updatePeers()
-			#TODO: emit joined event
+			self._event(type=Event.TYPE_NETWORK_JOINED)
 	def _handleJoinAsServer(self, peer, join):
 		left, right = self.neighbors()
 		if (not left and not right) or (left.getId() == right.getId()) or algorithm.isBetween(left.getId(), peer.getId(), right.getId()):
@@ -318,20 +319,20 @@ class Node:
 				return
 			del self.peersById[peer.getId()]
 		if peer in self._getImportantPeers():
-			logger.warn("Lost peer: %s" % peer)
+			logger.warn("Lost peer: %s", peer)
 			self.peers.remove(peer)
 			try:
 				self._connectTo(peer.getIdent())
-			except Exception, exc:
-				logger.exception(exc)
-				logger.warn("Failed to reconnect to peer: %s" % peer)
+			except Exception, exc: #@UnusedVariable
+				logger.warn("Failed to reconnect to peer: %s", peer)
 			self._updatePeers()
+			self._sendPeerList() # Sending updated peer list to all peers
 	def _handleMessage(self, address, connection, message):
 		peer = self._getPeer(connection)
 		if peer:
 			peer._handleMessage(message)
 		else:
-			logger.warn("Ignoring message from unknown connection: %s" % connection)
+			logger.warn("Ignoring message from unknown connection: %s", connection)
 	def _handleEvent(self, event):
 		if event.type == net.Event.TYPE_MESSAGE:
 			self._handleMessage(event.getAddress(), event.getConnection(), event.getData())
@@ -426,5 +427,8 @@ class Node:
 			if id_ in self.peersById.keys():
 				peers[id_] = self.peersById[id_]
 			else:
-				self._connectTo(node)
+				try:
+					self._connectTo(node)
+				except:
+					logger.warning("Failed to connect to %s in peer update", m2s(node))
 		self.peers = peers.values()

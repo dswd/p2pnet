@@ -177,14 +177,15 @@ def selectPeers(me, nodes, idFn):
 		if long_nodes_pos[i][0]:
 			long_nodes_space.append((long_nodes_pos[i][0], long_nodes_pos[i+1][1] - long_nodes_pos[i-1][1]))
 	long_nodes_space.sort(key=lambda n: -n[1])
+	long_nodes_space = filter(lambda n: n[0] not in short_left + short_right, long_nodes_space)
 	#select L long peers with largest log space to minimize sum of squares 
 	long_peers = [n[0] for n in long_nodes_space[:MAX_LONG]]
 	#print "----------------------------------"
-	#print "Self: %d" % ident.id
-	#print "Known nodes: %s" % [n.ident.id for n in nodes]
+	#print "Self: %d" % idFn(me)
+	#print "Known nodes: %s" % [idFn(n) for n in nodes]
 	#print "----------------------------------"
-	#print "Short left: %s" % [n.ident.id for n in short_left]
-	#print "Short right: %s" % [n.ident.id for n in short_right]
-	#print "Long peers: %s" % [n.ident.id for n in long_peers]
+	#print "Short left: %s" % [idFn(n) for n in short_left]
+	#print "Short right: %s" % [idFn(n) for n in short_right]
+	#print "Long peers: %s" % [idFn(n) for n in long_peers]
 	#print "----------------------------------"
 	return (short_left, short_right, long_peers)

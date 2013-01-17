@@ -9,10 +9,10 @@ def parseArgs():
 	options = parser.parse_args()
 	return options
 
-def run(obj):
+def run(obj, allowSelf=True):
 	options = parseArgs()
 	logging.basicConfig(level=options.log, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-	locals = getLocals(obj)
+	locals = getLocals(obj, allowSelf)
 	if options.arguments:
 		runSource(locals, "\n".join(options.arguments))
 	elif options.file:
@@ -41,7 +41,7 @@ def runFile(locals, file, options):
 	execfile(file, locals)
 	sys.path.pop(0)
 
-def getLocals(obj):
+def getLocals(obj, allowSelf=True):
 	locals = {}
 	def _help(method=None):
 		if method is None:
@@ -75,4 +75,6 @@ def getLocals(obj):
 	for func in dir(obj):
 		if not func.startswith("_") and callable(getattr(obj, func)):
 			locals[func] = getattr(obj, func)
+	if allowSelf:
+		locals["self"] = obj
 	return locals

@@ -8,7 +8,6 @@ if __name__ == "__main__":
 	node = Node()
 	ping.Feature(node)
 	handles.Feature(node)
-	node.node = lambda :node
 	def echo(*args): 
 		print " ".join(map(str, args))
 	node.echo = echo
