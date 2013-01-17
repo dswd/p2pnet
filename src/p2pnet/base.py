@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # TODO: DHT
 # TODO: Pub/Sub
 # TODO: MessageQueues
+# TODO: Traffic routing optimizations
 # TODO: Forwardings
 
 def generateId():
