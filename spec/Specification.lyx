@@ -1778,7 +1778,7 @@ Base protocol
 \begin_layout Standard
 \begin_inset CommandInset include
 LatexCommand verbatiminput
-filename "../p2p.proto"
+filename "../src/p2pnet/proto/p2p.proto"
 lstparams "caption={Procol buffer}"
 
 \end_inset
@@ -1793,7 +1793,7 @@ DHT protocol
 \begin_layout Standard
 \begin_inset CommandInset include
 LatexCommand verbatiminput
-filename "../dht.proto"
+filename "../src/p2pnet/proto/dht.proto"
 lstparams "caption={Procol buffer}"
 
 \end_inset

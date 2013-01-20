@@ -121,7 +121,7 @@ class Node(event.Manager):
 		event.Manager.__init__(self)
 		logger.debug("Ident: %s", self.ident)
 		logger.info("ID: %d", self.ident.id)
-		self.net = net.Node(proto.BaseMessage)
+		self.net = net.Node(proto.BaseMessage, msgSizeLimit=config.MAX_MESSAGE_SIZE)
 		self.net.addListener(self._handleMessage, net.Event.TYPE_MESSAGE)
 		self.net.addListener(self._handleConnect, net.Event.TYPE_CONNECT)
 		self.net.addListener(self._handleDisconnect, net.Event.TYPE_DISCONNECT)

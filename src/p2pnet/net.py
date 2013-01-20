@@ -189,7 +189,7 @@ class Node(event.Manager):
 	"""
 	undocumented
 	"""
-	def __init__(self, msgType, msgSizeLimit=2**20, bufferSize=4096):
+	def __init__(self, msgType, msgSizeLimit=1<<20, bufferSize=4096):
 		event.Manager.__init__(self)
 		self.running = False
 		self.msgType = msgType

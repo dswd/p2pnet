@@ -8,6 +8,8 @@ MAX_SHORT = 2 #default: 6
 MAX_LONG = 2 #default: 60
 MAX_TRAFFIC = 10
 
+MAX_MESSAGE_SIZE = 1<<20
+
 PEER_LIST_INTERVAL = 60 #default: 60
 CLEANUP_INTERVAL = 60 #default: 60
 
