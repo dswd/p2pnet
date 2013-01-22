@@ -133,6 +133,7 @@ class Node(event.Manager):
 		self._rebuildIdent()
 		self.net.schedule(self._sendPeerList, config.PEER_LIST_INTERVAL, repeated=True)
 		self.net.schedule(self._cleanup, config.CLEANUP_INTERVAL, repeated=True)
+		self.features = {}
 	def _peerList(self, shouldReply):
 		peers = [p.getIdent() for p in self._getPeers()]
 		return  proto.PeerList(peers=peers, shouldReply=shouldReply)
