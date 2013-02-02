@@ -19,3 +19,7 @@ DEFAULT_TTL = 128
 MAX_TTL = 1024
 
 TRAFFIC_AVERAGING = 60 # half-life-time for traffic in seconds
+
+MAX_DHT_TIMEOUT = 60 * 60 * 24 * 14 #14 days
+MAX_DHT_PROTECTION_TIMEOUT = 60 * 60 * 24 * 14 #14 days
+MAX_DHT_SUBSCRIPTION_TIMEOUT = 60 * 60 * 24 * 14 #14 days
