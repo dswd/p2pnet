@@ -1,10 +1,10 @@
-import socket, thread, threading, select, cStringIO, logging, time
+import socket, thread, threading, select, cStringIO, logging, time, math
 
 from google.protobuf.internal.decoder import _DecodeVarint as decodeVarint #@UnresolvedImport
 from google.protobuf.internal.encoder import _EncodeVarint as createVarintEncoder #@UnresolvedImport
 encodeVarint = createVarintEncoder
 
-from . import timer, flag, event
+from . import timer, flag, event, config
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,10 @@ class Connection:
 		self.address = (self.socket.family,) + self.socket.getpeername()
 		self.uuid = sum(sorted([self.socket.getsockname(), self.socket.getpeername()]), (self.socket.family,))
 		self.setupTime = time.time()
-		self.lastMessageTime = time.time()
+		self.lastMessageInTime = time.time()
+		self.lastMessageOutTime = time.time()
+		self.trafficIn = 0.0
+		self.trafficOut = 0.0
 		self.rbuffer = ""
 		self.wmsgs = []
 		self.rmsgs = []
@@ -74,11 +77,36 @@ class Connection:
 		undocumented
 		"""
 		return self.setupTime
+	def getLastMessageInTime(self):
+		"""
+		undocumented
+		"""
+		return self.lastMessageInTime
+	def getLastMessageOutTime(self):
+		"""
+		undocumented
+		"""
+		return self.lastMessageOutTime
 	def getLastMessageTime(self):
 		"""
 		undocumented
 		"""
-		return self.lastMessageTime
+		return max(self.lastMessageInTime, self.lastMessageOutTime)
+	def getTrafficIn(self):
+		"""
+		undocumented
+		"""
+		return self.trafficIn * math.pow(0.5, (time.time() - self.lastMessageInTime)/config.TRAFFIC_AVERAGING)
+	def getTrafficOut(self):
+		"""
+		undocumented
+		"""
+		return self.trafficOut * math.pow(0.5, (time.time() - self.lastMessageOutTime)/config.TRAFFIC_AVERAGING)
+	def getTraffic(self):
+		"""
+		undocumented
+		"""
+		return self.getTrafficIn() + self.getTrafficOut()
 	def getAddress(self):
 		"""
 		undocumented
@@ -121,7 +149,19 @@ class Connection:
 			msg = self.baseMsg()
 			msg.ParseFromString(data)
 			self.rmsgs.append(msg)
-			self.lastMessageTime = time.time()
+			self._updateStatsReceived(len(data))
+	def _updateStatsReceived(self, length):
+			now = time.time()
+			diff = (now - self.lastMessageInTime)
+			f = math.pow(0.5, diff/config.TRAFFIC_AVERAGING)
+			self.trafficIn = self.trafficIn * f + (length/diff) * (1-f)
+			self.lastMessageInTime = now
+	def _updateStatsSent(self, length):
+			now = time.time()
+			diff = (now - self.lastMessageOutTime)
+			f = math.pow(0.5, diff/config.TRAFFIC_AVERAGING)
+			self.trafficOut = self.trafficOut * f + (length/diff) * (1-f)
+			self.lastMessageOutTime = now
 	def _receiveAll(self):
 		msgs = self.rmsgs
 		self.rmsgs = []
@@ -140,7 +180,7 @@ class Connection:
 		val = buf.getvalue()
 		logger.debug("Message length: %d", len(val))
 		self.socket.send(val, 0 if force else socket.MSG_DONTWAIT)
-		self.lastMessageTime = time.time()
+		self._updateStatsSent(len(val))
 	def send(self, msg=None, force=False, **kwargs):
 		"""
 		undocumented
@@ -187,9 +227,27 @@ class Connection:
 
 class Node(event.Manager):
 	"""
-	undocumented
+	This class implements a networking node that communicates using protocol 
+	buffer messages. 
+	The messages are encoded using the protocol buffers	library and delimited
+	by prepending a *varint-encoded* length value.
+	The whole node implementation uses only one thread and waits for input on
+	its connections using the select system call.  
 	"""
 	def __init__(self, msgType, msgSizeLimit=1<<20, bufferSize=4096):
+		"""
+		Creates a new protocol buffer node.
+		
+		Parameter *msgType*:
+		  This is the class of the protocol buffers message type that is used
+		  to communicate. Only messages of this type can be sent and received.
+		  
+		Parameter *msgSizeLimit*:
+		  This parameter specifies the maximum message size in bytes. Sending
+		  a message that is larger than this limit is an error. If a message is
+		  received that is bigger than the limit, the connection is immediately
+		  terminated.
+		"""
 		event.Manager.__init__(self)
 		self.running = False
 		self.msgType = msgType
@@ -200,24 +258,46 @@ class Node(event.Manager):
 		self._triggerFlag = flag.Flag()
 	def start(self):
 		"""
-		undocumented
+		Starts the node by starting its inner event loop in a thread.
 		"""
 		if self.isRunning():
 			return
 		thread.start_new_thread(self._run, ())
 	def stop(self):
 		"""
-		undocumented
+		Stops the node by stopping its inner event loop thread.
 		"""
 		self.running = False
 	def isRunning(self):
 		"""
-		undocumented
+		Checks whether the node is running.
+		
+		Return value:
+		  *True* if the node is running, else *False*
 		"""
 		return self.running in threading.enumerate()
 	def open(self, port=0, host='', addressFamily=socket.AF_INET): #@ReservedAssignment
 		"""
-		undocumented
+		Opens a TCP server socket bound to the given address and port.
+		
+		Parameter *port*:
+		  This parameter specifies the port that should be bound. The range of 
+		  valid values and their meaning depends on the address family.
+		  If the port number is *0*, a free port will be selected and bound. 
+		  
+		Parameter *host*:
+		  This parameter specifies the host address that should be bound to. 
+		  The range of valid values and their meaning depends on the address 
+		  family.
+		  If the host is *''*, all local addresses will be bound.
+		
+		Parameter *addressFamily*:
+		  This parameter specifies the address family of the socket.
+		
+		Return value:
+		  The actual address that the server socket has been bound to.
+		  This value should be used to refer to the server socket in other 
+		  calls.
 		"""
 		sock = socket.socket(addressFamily, socket.SOCK_STREAM)
 		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -231,14 +311,17 @@ class Node(event.Manager):
 		return addr
 	def close(self, address):
 		"""
-		undocumented
+		Closes the given server socket.
+		
+		Parameter *address*:
+		  The address of the server socket as returned by :func:`open()`.
 		"""
 		sock = self.servers[address]
 		sock.close()
 		del self.servers[address]
 	def shutdown(self):
 		"""
-		undocumented
+		Closes all server sockets, connections and stops the node.
 		"""
 		for addr in self.getAddresses():
 			self.close(addr)
@@ -247,7 +330,10 @@ class Node(event.Manager):
 		self.stop()
 	def getAddresses(self):
 		"""
-		undocumented
+		Returns a list of all server socket addresses.
+		
+		Return value:
+		  A list of all server socket addresses as returned by :func:`open()`.
 		"""
 		return self.servers.keys()
 	def connectTo(self, addr):

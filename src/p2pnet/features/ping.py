@@ -19,6 +19,7 @@ class Feature:
         node.addListener(self._handleEvent, Event.TYPE_MESSAGE_ROUTED)
         node.ping = self.ping
         self.pings = {}
+        node.features[__name__] = self        
     def _handleEvent(self, evt):
         msg = evt.getData()
         if not msg.HasField("pingMsg"):

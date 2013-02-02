@@ -23,6 +23,7 @@ class Feature:
 		node.addListener(self._handleEvent, Event.TYPE_MESSAGE_JOIN)
 		node.join = self.join
 		self.joinState = {}
+		node.features[__name__] = self
 	def _handleEvent(self, evt):
 		join = evt.getData()
 		peer = evt.getPeer() 

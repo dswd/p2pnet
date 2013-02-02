@@ -20,6 +20,7 @@ class Feature:
         node.addListener(self._handleEvent, Event.TYPE_MESSAGE_ROUTED)
         node.bindHandle = self.bindHandle
         node.isHandleBound = self.isHandleBound
+        node.features[__name__] = self
     def _handleEvent(self, evt):
         msg = evt.getData()
         for ctrl in msg.routedControl:

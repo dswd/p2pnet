@@ -17,3 +17,5 @@ CONNECTION_TIMEOUT = 120 #default: 120
 
 DEFAULT_TTL = 128
 MAX_TTL = 1024
+
+TRAFFIC_AVERAGING = 60 # half-life-time for traffic in seconds

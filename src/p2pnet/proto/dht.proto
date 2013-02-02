@@ -1,83 +1,168 @@
 package p2pnet;
 
+// This message represents the basic message for the DHT sub-protocol.
 message DHTMessage {
-  required fixed64 hash = 1; //the hash of the entry == the id it should be stored on
-  required bytes key = 2; //the key of the entry, used to avoid hash collisions
-  optional DHTEntry entry = 3; //the dht entry, used in replies (if existant) or when forwarding stored data
-  repeated DHTOp op = 4; //multiple dht operations (get, store, ...)
+
+  // The type of the message
+  required Type type = 1;
+  enum Type {
+
+    // This message is a request and must be answered with a message of type reply.
+    REQUEST = 1;
+
+    // This message is a reply.
+    REPLY = 2;
+
+    // This message forwards a complete entry to a new location in the ring.
+    PUSH = 3;
+
+    // This message informs the subscriber of a subscribed request and reply
+    EVENT = 4;
+  }
+
+  // The hash of the entry, this is the position in the ring (i.e. node ID) where this entry should
+  // be stored. If no node with this ID exists in the ring (i.e. only super peers), the entry will
+  // be stored on the node with the closest lower ID.
+  required fixed64 hash = 2;
+
+  // This is key, the entry should be stored under. It must be unique and entries with the same key
+  // sequence are expected to be the same entry.
+  // Implementations are free to define a scheme that maps keys to hash values as long as it 
+  // achieves a uniform distribution.
+  required bytes key = 3;
+
+  // A list of DHT requests if this message is of type request or event. For each of the requests a
+  // matching DHTReply must be sent in the reply message.
+  repeated DHTRequest request = 4;
+
+  // A list of replies to DHT requests in this message is of type reply or event. Each of the replies
+  // must match a DHT request in the original request message. The order of the replies must be the 
+  // same as the requests.  
+  repeated DHTReply reply = 5;
+
+  // An entry that is being pushed to the receiver if the message is of type push.
+  optional DHTEntry entry = 6;
+
+  // If this flag is set, an error while processing a request will cause all subsequent requests to
+  // be skipped.
+  optional bool abortOnError = 7;
 }
 
+// One request to the DHT entry. This message is a multiplexer and must contain exactly one of its 
+// fields.
+message DHTRequest {
+
+  // Requests to retrieve the entry or parts of it. The corresponding reply object must contain the
+  // requested entry parts in its entry field. 
+  optional Retrieve retrieve = 1;
+  message Retrieve {
+
+    // A list of value indexes to retrieve. The index starts with 1 and negative references (last 
+    // value is -1) are allowed. If this field contains indexes, the reply must include exactly
+    // those values in the given order of indexes. It is an invalid request if this field contains
+    // values and the firstIndex or the lastIndex fields are set.
+    repeated sint32 indexes = 1;
+
+    // If both of the firstIndex and lastIndex fields are set a range of values should be 
+    // returned. The index starts with 0 and negative references (last value is -1) are allowed. 
+    // The reply must include exactly this range of indexes in ascending order. If only one of the
+    // fields is set, the request is considered invalid.
+    optional sint32 firstIndex = 2;
+    optional sint32 lastIndex = 3;
+
+    // Whether or not to include meta information (i.e. all entry fields except values and 
+    // subscribers) and the subscriber list in the reply. It is perfectly valid to leave the 
+    // indexes fields blank and only request the meta data or subscribers.
+    optional bool includeMeta = 4 [default=true];
+    optional bool includeSubscribers = 5 [default=false];
+  }
+
+  // Requests to add the given values to the entry. The corresponding reply must be empty.
+  optional Publish publish = 2;
+  message Publish {
+
+    // The values to add to the value list of the entry.
+    repeated bytes values = 1;
+
+    // The index where the new values should be inserted. The existing values are enumerated
+    // starting from 1 and negative references (last vale is -1) are allowed.
+    optional sint32 storeAt = 2 [default=0]; 
+  }
+
+  // Requests to delete values from the entry. The indexing rules are the same as for retrieve.
+  // The corresponding reply must be empty.
+  optional Delete delete = 3;
+  message Delete {
+    repeated sint32 indexes = 1;
+    optional sint32 firstIndex = 2;
+    optional sint32 lastIndex = 3;    
+  }
+
+  // Requests to set the timeout to the given unix time. The corresponding reply must be 
+  // empty. If the timeout is set to a time in the past, the entry is immediatly deleted.
+  optional int64 setTimeout = 4;
+
+  // Requests to add or modify a subscription. The corresponding reply must be empty.
+  optional DHTEntry.Subscription subscribe = 5;
+
+  // Requests to set or modify the protection of this entry. The corresponding reply must be empty.
+  optional DHTEntry.Protection protect = 6;
+}
+
+message DHTReply {
+  enum Status {
+    SUCCESS = 1;
+    ERROR = 2;
+    SKIPPED = 3;
+    FORWARDED = 4;
+  }
+  required Status status = 1;
+  
+  optional DHTEntry entry = 2;
+  
+  enum ErrorCode {
+    // general errors
+    ENTRY_UNKNOWN = 1;
+    ENTRY_PROTECTED = 2;
+    REQUEST_INVALID = 3;
+    LIMIT_TIMEOUT = 4; 
+    
+    // publish errors
+    LIMIT_VALUE_SIZE = 10;
+    LIMIT_VALUE_COUNT = 11;
+  }
+  optional ErrorCode errorCode = 8;
+  optional string errorMsg = 9;
+}
+
+// This message type represents an entry in the DHT. 
+// Each entry contains a list of values, a list of subscribers, a protection field, and some 
+// informational fields.
 message DHTEntry {
+  message Protection {
+    required bytes publicKey = 1; //The public key of the protection
+    optional int32 timeoutTime = 2; //The timeout timestamp in unix time
+    optional bool valuesProtected = 3;
+    optional bool timeoutProtected = 4;
+    optional bool subscribersProtected = 5;
+  } 
+  message Subscription {
+    required ServiceAddress addr = 1;
+    optional int32 timeout = 2; //The timeout timestamp in unix time
+    optional bool forwardData = 3; //Do not execute value operations
+    optional bool observeValues = 4;
+    optional bool observeSubscribers = 5;
+    optional bool observeTimeout = 6;
+    optional bool observeProtection = 7;
+  }
   optional int32 firstAge = 1; //time in sec, since this entry has first been seen
   optional int32 lastAge = 2; //time in sec, since this entry has last been renewed or updated
   optional int32 timeout = 3; //time in sec, when this entry will time out
   optional int32 valueCount = 4; //number of values, currently stored in the entry
   optional int32 dataSize = 5; //total number of bytes used by all values of the entry in sum
   repeated bytes value = 6; //requested values (get operation) or all values (forwarded entry)
-  repeated ServiceAddress listeners = 7; //all listeners of the entry
-  repeated ServiceAddress forwards = 8; //all forwards of the entry
-}
-
-message DHTOp {
-  message Get { //request for values of an entry
-    repeated sint32 index = 1;
-    optional sint32 indexStart = 2;
-    optional sint32 indexEnd = 3;
-    optional bool includeListeners = 4 [default=false];
-  }
-  optional Get get = 1;
-
-  message GetInfo { //request for meta information of an entry
-    optional bool includeListeners = 1 [default=false];
-  }
-  optional GetInfo getInfo = 2;
-
-  message Set { //request to store values for an entry
-    enum Mode {
-      OVERWRITE = 1;
-      INSERT = 2;
-      APPEND = 3;
-    }
-    optional Mode mode = 1 [default=OVERWRITE];
-    repeated bytes value = 2;
-    repeated sint32 index = 3;
-    optional sint32 indexStart = 4;
-    optional sint32 indexEnd = 5;
-  }
-  optional Set set = 3;
-
-  message Delete { //request to delete values of an entry
-    repeated sint32 index = 1;
-    optional sint32 indexStart = 2;
-    optional sint32 indexEnd = 3;
-  }
-  optional Delete delete = 4;
-
-  message Timeout { //request to set the timeout of an entry (either renew or delete)
-    optional int32 timeout = 1 [default=600];
-  }
-  optional Timeout timeout = 5;
-
-  message Listener { //request to add a listener to an entry, renew it or delete it (timeout=0)
-    required ServiceAddress listener = 1;
-    optional int32 timeout = 2 [default=600];
-  }
-  optional Listener listener = 6;
-
-  message Forward { //request to add a forward to an entry, renew it or delete it (timeout=0)
-    required ServiceAddress forward = 1;
-    optional int32 timeout = 2 [default=600];
-  }
-  optional Forward forward = 7;
-
-  message Conditional { //operation sequence will be terminated if the conditional does not match
-    optional int32 skipOps = 1;
-    optional int32 minCount = 2;
-    optional int32 maxCount = 3;
-    optional int32 minLastAge = 4;
-    optional int32 maxLastAge = 5;
-  }
-  optional Conditional conditional = 8;
+  repeated Subscription subscribers = 7; //all subscribers of the entry
+  optional Protection protection = 8;
 }
 
 message ServiceName {
