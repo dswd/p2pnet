@@ -1,9 +1,3 @@
-'''
-Created on Jan 11, 2013
-
-@author: schwerdel
-'''
-
 import random, logging
 
 from ..base import Event
@@ -26,7 +20,7 @@ class Feature:
         for ctrl in msg.routedControl:
             if ctrl.code == proto.Control.Routing_UnboundHandle: #@UndefinedVariable
                 self.node._event(type=Event.TYPE_HANDLE_UNBOUND, node=msg.srcId, data=ctrl.number[0]) #@UndefinedVariable
-        if not msg.hasField("dstHandle"):
+        if not msg.HasField("dstHandle"):
             return
         if self.isHandleBound(msg.dstHandle):
             try:
@@ -39,6 +33,7 @@ class Feature:
         if handleFn:
             if not handleId:
                 handleId = random.randint(1, 2**16)
+                #TODO: avoid selecting bound handle
             self.handles[handleId] = handleFn
             return handleId
         elif self.isHandleBound(handleId):

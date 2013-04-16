@@ -4,8 +4,8 @@ INITIALIZATION_MESSAGE = proto.Initialization(magic="p2pnet", minVersion=0, maxV
 
 MAX_ID = 1<<64 #default: 1<<64
 
-MAX_SHORT = 2 #default: 6
-MAX_LONG = 2 #default: 60
+MAX_SHORT = 6 #default: 6
+MAX_LONG = 60 #default: 60
 MAX_TRAFFIC = 10
 
 MAX_MESSAGE_SIZE = 1<<20

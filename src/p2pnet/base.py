@@ -39,6 +39,7 @@ class Event(event.Event):
 	TYPE_MESSAGE_JOIN = "message_join"
 	TYPE_NODE_UNREACHABLE = "node_unreachable"
 	TYPE_MESSAGE_INVALID = "message_invalid"
+	TYPE_PEERLIST_CHANGED = "peerlist_changed"
 	def __init__(self, type, peer=None, node=None, data=None): #@ReservedAssignment
 		event.Event.__init__(self, type, data)
 		self.node = node
@@ -80,7 +81,7 @@ class Peer:
 	def _event(self, **kwargs):
 		self.node._event(peer=self, **kwargs)
 	def _isAllowed(self):
-		return self.getId() in self.node.peers
+		return self in self.node.peers
 	def _handleMessage(self, msg):
 		if not self.init and msg.init:
 			self.init = msg.init
@@ -273,7 +274,7 @@ class Node(event.Manager):
 		"""
 		undocumented
 		"""
-		if isinstance(dstId, int):
+		if not isinstance(dstId, list):
 			dstId = [dstId]
 		if srcId is None:
 			srcId = self.getId()
@@ -346,3 +347,4 @@ class Node(event.Manager):
 				except:
 					logger.warning("Failed to connect to %s in peer update", m2s(node))
 		self.peers = peers.values()
+		self._event(type=Event.TYPE_PEERLIST_CHANGED, data=self.peers)

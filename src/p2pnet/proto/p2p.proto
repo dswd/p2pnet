@@ -42,6 +42,7 @@ message BaseMessage {
   optional Initialization init = 16;
   optional Join join = 17;
   repeated Control linkControl = 18;
+  repeated DHTPush dhtPush = 19;
 
   optional string test = 99;
 

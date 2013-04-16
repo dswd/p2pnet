@@ -1,5 +1,23 @@
 package p2pnet;
 
+// This message forwards a complete entry to a new location in the ring.
+message DHTPush {
+
+  // The hash of the entry, this is the position in the ring (i.e. node ID) where this entry should
+  // be stored. If no node with this ID exists in the ring (i.e. only super peers), the entry will
+  // be stored on the node with the closest lower ID.
+  required fixed64 hash = 2;
+
+  // This is key, the entry should be stored under. It must be unique and entries with the same key
+  // sequence are expected to be the same entry.
+  // Implementations are free to define a scheme that maps keys to hash values as long as it 
+  // achieves a uniform distribution.
+  required bytes key = 3;
+  
+  // An entry that is being pushed to the receiver if the message is of type push.
+  required DHTEntry entry = 6;
+}
+
 // This message represents the basic message for the DHT sub-protocol.
 message DHTMessage {
 
@@ -12,9 +30,6 @@ message DHTMessage {
 
     // This message is a reply.
     REPLY = 2;
-
-    // This message forwards a complete entry to a new location in the ring.
-    PUSH = 3;
 
     // This message informs the subscriber of a subscribed request and reply
     EVENT = 4;
@@ -40,15 +55,12 @@ message DHTMessage {
   // same as the requests.  
   repeated DHTReply reply = 5;
 
-  // An entry that is being pushed to the receiver if the message is of type push.
-  optional DHTEntry entry = 6;
-
   // If this flag is set, an error while processing a request will cause all subsequent requests to
   // be skipped.
-  optional bool abortOnError = 7;
+  optional bool abortOnError = 6;
   
   // Authentication data to pass the current protection if the message is of type request or event.
-  optional bytes credentials = 8;
+  optional bytes credentials = 7;
 }
 
 
@@ -160,7 +172,7 @@ message DHTReply {
     // invalid in general (i.e. invalidity not based on the current entry state).
     REQUEST_INVALID = 4;
 
-    // The request contained a limit that has been set too far into the future.
+    // The request contained a timeout that has been set too far into the future.
     LIMIT_TIMEOUT = 5; 
     
     // The value is too large.
@@ -250,11 +262,13 @@ message DHTEntry {
     // Unix timestamp when this protection will be automatically removed.
     optional int64 timeoutTime = 3;
     
-    // Whether value modifications require authentication
-    optional bool valuesProtected = 4;
-    
-    // Whether timeout requests require authentication 
-    optional bool timeoutProtected = 5;
+    optional bool protectRetrieveValues = 4;
+    optional bool protectRetrieveMeta = 5;
+    optional bool protectRetrieveSubscribers = 6;
+    optional bool protectPublish = 7;
+    optional bool protectDelete = 8;
+    optional bool protectSetTimeout = 9;
+    optional bool protectSubscribe = 10;
     
     // Further requests for protection must all authenticate against the current protection. 
   } 
