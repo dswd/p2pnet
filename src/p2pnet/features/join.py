@@ -72,6 +72,7 @@ class Feature:
 			# Add all joined peers to our peer list and built initial peer list based on their peers
 			for peer in self.joinState.keys():
 				self.node.peers.append(peer)
+			self.node._event(type=Event.TYPE_PEERLIST_CHANGED, data=self.node.peers)
 			self.node._updatePeers()
 			self.node._event(type=Event.TYPE_NETWORK_JOINED) #@UndefinedVariable
 	def _handleJoinAsServer(self, peer, join):
@@ -83,6 +84,7 @@ class Feature:
 			elif join.step == proto.Join.ACCEPT: #@UndefinedVariable
 				self.node.peers.append(peer)
 				peer.send(join=proto.Join(step=proto.Join.FINISHED)) #@UndefinedVariable
+				self.node._event(type=Event.TYPE_PEERLIST_CHANGED, data=self.node.peers)
 		else:
 			nextHop = algorithm.closestPeer(self.node._getPeers(), peer.getId(), Peer.getId)
 			peer.send(join=proto.Join(step=proto.Join.FORWARD, nextPeer=nextHop.getIdent())) #@UndefinedVariable

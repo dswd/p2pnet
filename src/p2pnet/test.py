@@ -73,7 +73,7 @@ def getLocals(obj, allowSelf=True):
 		return mod
 	locals_.update(help=_help, load=_load)
 	for func in dir(obj):
-		if not func.startswith("_") and callable(getattr(obj, func)):
+		if not func.startswith("_"):
 			locals_[func] = getattr(obj, func)
 	if allowSelf:
 		locals_["self"] = obj

@@ -1,9 +1,9 @@
 import socket, random, logging, time
-from google.protobuf import text_format #@UnresolvedImport
 
 logger = logging.getLogger(__name__)
 
 from . import net, proto, algorithm, config, event
+from proto import m2s
 
 # TODO: Part procedure
 # TODO: Edge peers
@@ -27,9 +27,6 @@ def decodeAddress(addr):
 	familyDec = {proto.Address.IPv4_TCP: socket.AF_INET, proto.Address.IPv6_TCP:socket.AF_INET6}.get(addr.type) #@UndefinedVariable 
 	hostDec = socket.inet_ntop(familyDec, addr.address)
 	return (familyDec, hostDec, addr.port)
-
-def m2s(msg):
-	return text_format.MessageToString(msg, as_one_line=True)
 
 class Event(event.Event):
 	"""
@@ -270,7 +267,7 @@ class Node(event.Manager):
 			peer._handleMessage(message)
 		else:
 			logger.warn("Ignoring message from unknown connection: %s", connection)
-	def send(self, dstId, srcId=None, **kwargs):
+	def send(self, dstId, srcId=None, dstHandle=None, srcHandle=None, **kwargs):
 		"""
 		undocumented
 		"""
@@ -279,9 +276,15 @@ class Node(event.Manager):
 		if srcId is None:
 			srcId = self.getId()
 		rmsg = proto.RoutedMessage(srcId=srcId, dstId=dstId, **kwargs)
+		if not dstHandle is None:
+			rmsg.dstHandle = dstHandle
+		if not srcHandle is None:
+			rmsg.srcHandle = srcHandle
 		self._route(rmsg)
 	def _reply(self, msg, **kwargs):
-		self.send(dstId=msg.srcId, srcHandle=msg.dstHandle, dstHandle=msg.srcHandle, **kwargs)
+		srcHandle = msg.srcHandle if msg.HasField("srcHandle") else None 
+		dstHandle = msg.dstHandle if msg.HasField("dstHandle") else None 
+		self.send(dstId=msg.srcId, srcHandle=dstHandle, dstHandle=srcHandle, **kwargs)
 	def _routedError(self, dst, severity, code, **kwargs):
 		self.send(dstId=dst, routedControl=[proto.Control(severity=severity, code=code, **kwargs)])
 	def _route(self, rmsg):
@@ -346,5 +349,7 @@ class Node(event.Manager):
 					self._connectTo(node)
 				except:
 					logger.warning("Failed to connect to %s in peer update", m2s(node))
+		oldPeers = self.peers
 		self.peers = peers.values()
-		self._event(type=Event.TYPE_PEERLIST_CHANGED, data=self.peers)
+		if oldPeers != self.peers:
+			self._event(type=Event.TYPE_PEERLIST_CHANGED, data=self.peers)

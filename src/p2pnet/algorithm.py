@@ -103,14 +103,14 @@ def route(msg, myId, peers, idFn):
 		# check if we are the closest peer to the left of dstId
 		if msg.policy == proto.RoutedMessage.LEFT: #@UndefinedVariable
 			closestLeft = closestPeer(peers, dstId, idFn, diff=diffRight)
-			if diffRight(myId, dstId) <= diffRight(idFn(closestLeft), dstId):
+			if not closestLeft or diffRight(myId, dstId) <= diffRight(idFn(closestLeft), dstId):
 				forMe.append(setDst(copy.deepcopy(msg), [dstId]))
 				continue					
 					
 		# check if we are the closest peer to the right of dstId
 		if msg.policy == proto.RoutedMessage.RIGHT: #@UndefinedVariable
 			closestRight = closestPeer(peers, dstId, idFn, diff=diffLeft)
-			if diffLeft(myId, dstId) <= diffLeft(idFn(closestRight), dstId):
+			if not closestRight or diffLeft(myId, dstId) <= diffLeft(idFn(closestRight), dstId):
 				forMe.append(setDst(copy.deepcopy(msg), [dstId]))
 				continue					
 					
@@ -133,9 +133,9 @@ def route(msg, myId, peers, idFn):
 			elif msg.policy == proto.RoutedMessage.DROP: #@UndefinedVariable
 				continue
 			elif msg.policy == proto.RoutedMessage.LEFT: #@UndefinedVariable
-				nextHop = closestPeer(peers, dstId, diff=diffRight)
+				nextHop = closestPeer(peers, dstId, idFn, diff=diffRight)
 			elif msg.policy == proto.RoutedMessage.RIGHT: #@UndefinedVariable
-				nextHop = closestPeer(peers, dstId, diff=diffLeft)
+				nextHop = closestPeer(peers, dstId, idFn, diff=diffLeft)
 		if nextHop:
 			outDst[nextHop] = outDst.get(nextHop, [])
 			outDst[nextHop].append(dstId)
