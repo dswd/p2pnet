@@ -223,7 +223,7 @@ message DHTEntry {
     required ServiceAddress addr = 1;
     
     // The unix timestamp when this subscription should/will be automatically removed
-    optional int64 timeout = 2;
+    optional int64 timeoutTime = 2;
     
     // Whether value operations should be executed or just forwarded to the subscribers.
     // As soon as one subscription has this flag, all further value operations will be 
@@ -297,8 +297,8 @@ message ServiceName {
 
 // This message type can be used in the DHT for service addresses.
 message ServiceAddress {
-  repeated fixed64 id = 1;
-  repeated int32 handle = 2;
+  required fixed64 id = 1;
+  required int32 handle = 2;
 }
 
 

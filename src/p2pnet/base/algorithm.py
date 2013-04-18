@@ -1,7 +1,7 @@
 import copy, math, logging
 
-from config import MAX_ID, DEFAULT_TTL, MAX_TTL, MAX_SHORT, MAX_LONG
-from . import proto
+from ..config import MAX_ID, DEFAULT_TTL, MAX_TTL, MAX_SHORT, MAX_LONG
+from .. import proto
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,8 @@ from google.protobuf.internal.decoder import _DecodeVarint as decodeVarint #@Unr
 from google.protobuf.internal.encoder import _EncodeVarint as createVarintEncoder #@UnresolvedImport
 encodeVarint = createVarintEncoder
 
-from . import timer, flag, event, config
+from . import config
+from .util import timer, flag, event
 
 logger = logging.getLogger(__name__)
 

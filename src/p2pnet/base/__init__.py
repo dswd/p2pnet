@@ -2,8 +2,10 @@ import socket, random, logging, time
 
 logger = logging.getLogger(__name__)
 
-from . import net, proto, algorithm, config, event
-from proto import m2s
+from . import algorithm
+from .. import net, proto, config
+from ..util import event
+from ..proto import m2s
 
 # TODO: Part procedure
 # TODO: Edge peers

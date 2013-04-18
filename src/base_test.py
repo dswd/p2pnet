@@ -9,7 +9,7 @@ class Control:
 	def __init__(self, node):
 		self.node = node
 		self.net = node.net
-		self.dht = node.features.get("p2pnet.features.dht")
+		self.dht = node.features.get("dht")
 		self.node.addListener(self.onDhtReply, ["dht_reply"])
 		self.watchEvents()
 		self.DEBUG = logging.DEBUG
@@ -36,7 +36,7 @@ class Control:
 		return self.node.join(*args, **kwargs)
 
 if __name__ == "__main__":
-	from p2pnet.test import run
+	from p2pnet.util.test import run
 	from p2pnet import createNode
 	node = createNode()
 	print "ID: %s" % node.getId()

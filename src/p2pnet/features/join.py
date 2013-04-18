@@ -6,8 +6,8 @@ Created on Jan 11, 2013
 
 import logging
 
-from ..base import Event, Peer
-from .. import proto, algorithm
+from ..base import Event, Peer, algorithm
+from .. import proto
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,13 @@ JOIN_STATE_PENDING = 1
 JOIN_STATE_FINISHED = 2
 
 class Feature:
+	NAME = "join"
 	def __init__(self, node):
 		self.node = node
 		node.addListener(self._handleEvent, Event.TYPE_MESSAGE_JOIN)
 		node.join = self.join
 		self.joinState = {}
-		node.features[__name__] = self
+		node.features[Feature.NAME] = self
 	def _handleEvent(self, evt):
 		join = evt.getData()
 		peer = evt.getPeer() 
