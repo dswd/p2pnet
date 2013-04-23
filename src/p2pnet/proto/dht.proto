@@ -92,8 +92,9 @@ message DHTRequest {
     // Whether or not to include meta information (i.e. all entry fields except values and 
     // subscribers) and the subscriber list in the reply. It is perfectly valid to leave the 
     // indexes fields blank and only request the meta data or subscribers.
-    optional bool includeMeta = 4 [default=true];
-    optional bool includeSubscribers = 5 [default=false];
+    // 2^0: includeMeta (default=true)
+    // 2^1: includeSubscribers (default=false)
+    optional int32 flags = 4 [default=1];
   }
 
   // Requests to add the given values to the entry. The corresponding reply must be empty.
@@ -225,22 +226,15 @@ message DHTEntry {
     // The unix timestamp when this subscription should/will be automatically removed
     optional int64 timeoutTime = 2;
     
+    // 2^0: observeValues, Whether to observe value modifications
+    // 2^1: observeSubscribers, Whether to observe subscriptions
+    // 2^2: observeTimeout, Whether to observe timeout requests
+    // 2^3: observeProtection, Whether to observe protection requests
+    // 2^4: forwardData
     // Whether value operations should be executed or just forwarded to the subscribers.
     // As soon as one subscription has this flag, all further value operations will be 
     // forwarded regardless of observeValues.
-    optional bool forwardData = 3;
-    
-    // Whether to observe value modifications
-    optional bool observeValues = 4;
-    
-    // Whether to observe subscriptions
-    optional bool observeSubscribers = 5;
-    
-    // Whether to observe timeout requests
-    optional bool observeTimeout = 6;
-    
-    // Whether to observe protection requests
-    optional bool observeProtection = 7;
+    optional int32 flags = 3;
   }
   
   // The protection of the entry
@@ -277,13 +271,14 @@ message DHTEntry {
     // Unix timestamp when this protection will be automatically removed.
     optional int64 timeoutTime = 3;
     
-    optional bool protectRetrieveValues = 4;
-    optional bool protectRetrieveMeta = 5;
-    optional bool protectRetrieveSubscribers = 6;
-    optional bool protectPublish = 7;
-    optional bool protectDelete = 8;
-    optional bool protectSetTimeout = 9;
-    optional bool protectSubscribe = 10;
+    // 2^0: protectRetrieveValues
+    // 2^1: protectRetrieveMeta
+    // 2^2: protectRetrieveSubscribers
+    // 2^3: protectPublish
+    // 2^4: protectDelete
+    // 2^5: protectSetTimeout
+    // 2^6: protectSubscribe
+    optional int32 flags = 4;
     
     // Further requests for protection must all authenticate against the current protection. 
   } 

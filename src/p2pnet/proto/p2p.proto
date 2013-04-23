@@ -15,7 +15,8 @@ message Address {
 message Peer {
   required fixed64 id = 1;
   repeated Address address = 2;
-  required bool reachable = 3;
+  // 2^0: reachable
+  required int32 flags = 3;
   optional IdProof idProof = 16;
 
   extensions 100 to max;  
@@ -23,8 +24,9 @@ message Peer {
 
 message PeerList {
   repeated Peer peers = 1;
-  optional bool complete = 2 [default=true];
-  optional bool shouldReply = 3 [default=false];
+  // 2^0: complete (default: true)
+  // 2^1: shouldReply (default: false)
+  optional int32 flags = 2 [default=1];
 }
 
 message TrafficInfo {

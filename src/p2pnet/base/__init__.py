@@ -11,9 +11,6 @@ from ..proto import m2s
 # TODO: Edge peers
 # TODO: Public Keys
 # TODO: Broadcast
-# TODO: DHT
-# TODO: Pub/Sub
-# TODO: MessageQueues
 # TODO: Traffic routing optimizations
 # TODO: Forwardings
 
